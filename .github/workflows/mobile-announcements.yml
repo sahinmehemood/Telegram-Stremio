@@ -26,7 +26,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
           cache: pip
           cache-dependency-path: mobile-announcements/requirements.txt
 
@@ -36,6 +36,5 @@ jobs:
       - name: Compile Python files
         run: python -m compileall -q mobile-announcements
 
-      - name: Run unit tests
-        working-directory: mobile-announcements
-        run: python -m unittest discover -s tests -v
+      - name: Run requested unit-test command
+        run: python -m unittest discover -s mobile-announcements/tests -v
