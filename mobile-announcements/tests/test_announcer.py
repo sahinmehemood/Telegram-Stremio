@@ -306,7 +306,7 @@ class AsyncWorkerTests(unittest.IsolatedAsyncioTestCase):
 
             await worker.handle_deleted(client, [SimpleNamespace(chat=SimpleNamespace(id=-100123), id=77)])
 
-            client.delete_messages.assert_awaited_once_with(chat_id="-100555", message_ids=[900])
+            client.delete_messages.assert_awaited_once_with(chat_id=-100555, message_ids=[900])
             self.assertEqual(worker.store.find_source_message(-100123, 77), [])
             self.assertFalse(worker.store.has(key))
 
