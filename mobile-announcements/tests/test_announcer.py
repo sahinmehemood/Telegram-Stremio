@@ -4,7 +4,7 @@ import tempfile
 import sqlite3
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("mobile_announcer", ROOT / "announcer.py")
@@ -170,6 +170,27 @@ class AnnouncementFormattingTests(unittest.TestCase):
         buttons = [button for row in markup.inline_keyboard for button in row]
         self.assertTrue(all(button.url.startswith("https://") for button in buttons))
         self.assertIn("imdb.com/title/tt1234567", buttons[0].url)
+
+
+class RetryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_flood_wait_longer_than_two_minutes_is_retried(self):
+        class FakeFloodWait(Exception):
+            def __init__(self, value):
+                super().__init__(f"wait {value}s")
+                self.value = value
+
+        worker = object.__new__(announcer.AnnouncementWorker)
+        worker._send_announcement = AsyncMock(side_effect=[FakeFloodWait(181), object()])
+        info = announcer.MediaInfo(title="Retry Film", media_type="movie", year="2025")
+
+        with patch.object(announcer, "FloodWait", FakeFloodWait), patch.object(
+            announcer.asyncio, "sleep", new_callable=AsyncMock
+        ) as sleep:
+            result = await worker._send_announcement_with_retry(info)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(worker._send_announcement.await_count, 2)
+        sleep.assert_awaited_once_with(182)
 
 
 if __name__ == "__main__":
