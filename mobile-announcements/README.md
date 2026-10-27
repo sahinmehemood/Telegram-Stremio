@@ -1,69 +1,71 @@
-# TeleStremio Mobile Announcements (Termux companion)
+# Mobile Announcements for TeleStremio (Termux)
 
-This folder is a **phone-runnable announcement worker** for TeleStremio users. It watches Telegram channels for new video/media posts and publishes one formatted announcement to a destination channel. It is designed for Termux on Android; it does not require a VPS or MongoDB.
+## 1. What it is
 
-> **Important scope note:** the public TeleStremio repository does not contain the native Android app's Kotlin/Gradle source. This is therefore a companion process, not a rebuilt or modified APK. It delivers the Telegram-channel announcement behavior while native app source is unavailable.
+Mobile Announcements is a small Python worker that runs in Termux and posts an announcement when new video media arrives in Telegram source channels. It logs into Telegram as your user account through PyroFork, not with a bot token. It uses Cinemeta when possible and stores deduplication state in a local SQLite database. It is **not inside the TeleStremio Android app** and it does **not** share that app's login or session.
 
-## Features
+## 2. What you need
 
-- Watches one or more Telegram source channels as your own Telegram account (so it can read channels your account can already access, without inviting a bot to every source).
-- Posts a poster-backed message when a new title is first detected.
-- Enriches titles from Cinemeta (no API key required); unmatched titles still get a useful filename-based announcement.
-- Includes title, year, movie/series type, IMDb rating, genres, release quality and a short description when metadata is available.
-- Supports optional public redirect URL buttons compatible with the full server's /open/stremio/... and /open/nuvio/... routes.
-- Persists announced title keys in SQLite to avoid reposting a title on process restarts.
-- Understands common release filenames and episode patterns via guessit, with a conservative fallback parser.
-- Keeps your Telegram session and settings local; no tokens or session files are committed.
+- An Android phone with [Termux](https://termux.dev/) installed.
+- A Telegram API ID and API hash from [my.telegram.org/apps](https://my.telegram.org/apps).
+- Your Telegram account already joined to every source media channel.
+- Admin rights or equivalent permission to post in the destination announcement channel.
+- Internet access while the worker is running.
 
-## What you need
+The worker uses your **Telegram user account** to read source channels because those channels may not have a bot. It sends announcements as the same account, so Telegram must allow that account to post in the destination.
 
-1. Android with Termux.
-2. A Telegram API ID and API hash from https://my.telegram.org/apps.
-3. Admin permission to post in the destination announcement channel.
-4. Membership/access to the media source channels you want to watch.
+## 3. Install in Termux
 
-This uses your **user account**, not a bot token. The first run asks you to log in with your Telegram phone number, code, and 2FA password if enabled. A local session file is created; **never share or commit that file**.
-
-## Install in Termux
+Paste these commands in Termux:
 
 ~~~sh
 pkg update
-pkg install -y python git
+pkg install python git
 git clone --branch feature/mobile-media-announcements https://github.com/sahinmehemood/Telegram-Stremio.git
 cd Telegram-Stremio/mobile-announcements
-python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 cp .env.example .env
 nano .env
 python announcer.py
 ~~~
 
-The first launch prompts for the Telegram login. Once the account is signed in, the worker listens for new posts in the configured source channels.
+Fill in **API_ID**, **API_HASH**, **SOURCE_CHANNELS**, and **ANNOUNCEMENT_CHANNEL** before the final command. Use a comma-separated list for **SOURCE_CHANNELS**, such as @public_movies,-1001234567890. Usernames are matched without @ and without case sensitivity. Use the full -100… ID for private channels; a plain numeric ID and a -100… ID are compared as different integers.
 
-### Configure .env
+For a source that only has a private numeric ID, use that exact ID. Do not add a bot to your source channels: the worker reads them using your logged-in Telegram user session.
 
-- API_ID: numeric API ID from my.telegram.org/apps.
-- API_HASH: API hash from my.telegram.org/apps.
-- SOURCE_CHANNELS: comma-separated channel IDs or public usernames, e.g. @my_movies,-1001234567890. Use IDs for private channels.
-- ANNOUNCEMENT_CHANNEL: your destination channel ID or public username, e.g. @my_media_updates.
-- PUBLIC_BASE_URL (optional): public HTTPS base URL for a server that implements /open/stremio/{movie|series}/{imdb_id} and /open/nuvio/{movie|series}/{imdb_id}. Leave blank to use IMDb/TMDb info buttons instead. A phone-local URL such as 127.0.0.1 is not reachable by people clicking your channel posts.
-- ANNOUNCE_EACH_EPISODE: false by default, which mirrors the VPS server's title-level deduplication. Set to true to announce each identifiable episode separately.
-- STATE_DB: optional local SQLite path (default announcements.sqlite3).
+## 4. First login and session safety
 
-The account must have permission to post in the destination channel. It must already be a member of each source channel. If Telegram channel signatures are enabled, posts may show the admin signature according to the channel's settings.
+On the first run of **python announcer.py**, PyroFork prompts for your Telegram phone number, the login code Telegram sends you, and your two-step-verification password if you have one. These are normal Telegram sign-in prompts; do not put your phone number, code, or 2FA password in **.env**. The session file is saved in **mobile-announcements/** using the configured **SESSION_NAME** (by default **telestremio_announcer.session**).
 
-## Keep it running on Android
+Never commit, upload, or share the session file, its journal file, **.env**, or the SQLite database. They are ignored by Git. If a session file leaks, revoke that session from Telegram **Settings → Devices** and sign in again.
 
-Termux must remain installed and allowed to run in the background. For a long-running session, use a terminal multiplexer or a foreground session, allow Termux unrestricted battery use, and acquire a wake lock with termux-wake-lock if the device sleeps aggressively. Android may still stop background processes; this is not a 24/7 VPS.
+Optional performance note: PyroFork can run without TgCrypto, but may be slower. Only try installing TgCrypto separately if pip has a compatible wheel for your Termux/Python version; if pip attempts a source build or fails, skip it rather than setting up a compiler.
 
-## Behavior and limitations
+## 5. Keep it running on Android
 
-- It only handles **new incoming posts** after the worker is started; it does not bulk-scan historic channel contents.
-- It announces a title once by its canonical IMDb ID when metadata is found, otherwise by a normalized title/year key. Additional qualities or episodes of a series do not create repeat announcements unless ANNOUNCE_EACH_EPISODE=true.
-- Source filenames without enough title information may be posted using their best-effort parsed title; metadata is not guaranteed for obscure, personal, or incorrectly named files.
-- Without a public HTTPS redirect service, Telegram inline buttons cannot safely route through the VPS-style redirect endpoint. The worker uses HTTPS information links instead. A configured PUBLIC_BASE_URL restores the Stremio/Nuvio buttons if those routes exist.
-- This is separate from the TeleStremio Android process. Stopping the worker stops new announcements; playback in TeleStremio is unaffected.
+Run this in a second Termux session to request a wake lock:
 
-## Safety
+~~~sh
+termux-wake-lock
+~~~
 
-Keep .env, *.session, SQLite database files, and logs private. If the Telegram session is exposed, revoke it from Telegram's Devices settings.
+Allow Termux **Unrestricted** battery usage in Android's app battery settings, and do not force-stop Termux. Keep the worker's terminal session open; a terminal multiplexer may help if you use one. To release the wake lock later, run **termux-wake-unlock**.
+
+Android can still kill Termux or its network activity, especially under memory pressure or vendor battery management. This is a phone process, **not 24/7 hosting**. Announcements are not backfilled after an interruption: if a post arrives while the worker is stopped, it is not announced when you restart it.
+
+## 6. What it will and will not post
+
+- It handles **new channel posts received after startup only**. It does not scan or announce old channel history.
+- It accepts Telegram videos, video MIME-type documents, documents named with common video extensions, and common archive/split parts (.zip, .rar, .7z, .001, .part, and filenames such as movie.mkv.001). Plain text, photos, audio, stickers, and subtitles are ignored.
+- Each movie is announced once; a series is announced the first time it is seen. Additional qualities and later episodes of that series do not create new posts by default.
+- Set **ANNOUNCE_EACH_EPISODE=true** to use season/episode keys for series posts. A post without a useful parsed title is skipped and logged.
+- The worker parses names with guessit where possible, then falls back to a filename parser. It looks up Cinemeta without an API key, but if metadata is unavailable it still posts the parsed title, year, type and quality.
+- The announcement is formatted as HTML with the title/year, Movie or Series, one-decimal rating when available, up to four genres, quality, and a description truncated to 320 characters. It sends the poster when available, otherwise the backdrop. If Telegram rejects the photo send, the worker falls back to the same caption as a text post.
+- A local SQLite database remembers successfully sent announcements across restarts. If a source post that triggered an announcement is deleted, the worker attempts to delete its corresponding announcement and drops the local mapping even if Telegram forbids the deletion.
+- On a Telegram FloodWait, the worker waits for Telegram's requested duration and retries that send once. If the retry fails, it leaves the dedupe key unstored.
+
+## 7. Buttons: public HTTPS server or IMDb/TMDb
+
+Leave **PUBLIC_BASE_URL** blank unless you have a **public HTTPS server** that implements the same VPS redirect routes. When a safe public HTTPS base and IMDb ID are both available, the post gets **▶️ Stremio** and **📱 Nuvio** buttons pointing to /open/stremio/{movie|series}/{imdbId} and /open/nuvio/{movie|series}/{imdbId}. The worker does not create these routes and does not make the Android app a public server.
+
+Without that base URL, an available IMDb ID gets one IMDb button; otherwise a known TMDb ID/link can get a TMDb button. Localhost and private LAN IP addresses are never used for Stremio/Nuvio buttons. No fake 127.0.0.1 button or bot-only “Get Addon” button is generated.
