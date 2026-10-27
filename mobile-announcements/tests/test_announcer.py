@@ -1,5 +1,7 @@
 import importlib.util
 import sys
+import tempfile
+import sqlite3
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -21,6 +23,20 @@ class ParseMediaTests(unittest.TestCase):
         self.assertEqual(info.title, "Oppenheimer")
         self.assertEqual(info.year, "2023")
         self.assertEqual(info.quality, "2160p / 4K")
+
+    def test_guessit_parses_normal_release_names(self):
+        if announcer.guessit is None:
+            self.skipTest("guessit is an installed runtime dependency")
+        movie = announcer.parse_media("Oppenheimer.2023.2160p.BluRay.x265.mkv")
+        episode = announcer.parse_media("Loki.S02E03.720p.WEB-DL.HEVC.mkv")
+        self.assertIsNotNone(movie)
+        self.assertEqual(movie.title, "Oppenheimer")
+        self.assertEqual(movie.media_type, "movie")
+        self.assertEqual(movie.year, "2023")
+        self.assertIsNotNone(episode)
+        self.assertEqual(episode.title, "Loki")
+        self.assertEqual(episode.media_type, "series")
+        self.assertEqual((episode.season, episode.episode), (2, 3))
 
     def test_season_episode_detected_without_guessit(self):
         with patch.object(announcer, "guessit", None):
@@ -93,6 +109,59 @@ class AnnouncementFormattingTests(unittest.TestCase):
         self.assertIn("&lt;script&gt;", caption)
         self.assertIn("A &amp; B", caption)
         self.assertLessEqual(len(caption), 900)
+
+    def test_pathological_caption_never_truncates_html_markup(self):
+        from html.parser import HTMLParser
+
+        info = announcer.MediaInfo(
+            title="<&" * 200,
+            media_type="movie",
+            description="<&" * 500,
+            genres=["<&" * 40] * 4,
+            quality="1080p",
+        )
+        caption = announcer.build_caption(info)
+        self.assertLessEqual(len(caption), 900)
+
+        class BalanceChecker(HTMLParser):
+            def __init__(self):
+                super().__init__(convert_charrefs=False)
+                self.stack = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag in {"b", "i"}:
+                    self.stack.append(tag)
+
+            def handle_endtag(self, tag):
+                if tag in {"b", "i"}:
+                    self.assert_tag_matches(tag)
+
+            def assert_tag_matches(self, tag):
+                if not self.stack or self.stack[-1] != tag:
+                    raise AssertionError(f"Unbalanced HTML tag: {tag}")
+                self.stack.pop()
+
+        checker = BalanceChecker()
+        checker.feed(caption)
+        checker.close()
+        self.assertEqual(checker.stack, [])
+
+    def test_store_persists_dedupe_key_across_instances(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "state.sqlite3"
+            info = announcer.MediaInfo(title="Persistent Film", media_type="movie", year="2024")
+            key = announcer.dedupe_key(info)
+            store = announcer.AnnouncementStore(path)
+            self.assertFalse(store.has(key))
+            store.add(key, info, "-100123", 77, 88)
+
+            reopened = announcer.AnnouncementStore(path)
+            self.assertTrue(reopened.has(key))
+            # INSERT OR IGNORE must not raise or create a second row.
+            reopened.add(key, info, "-100123", 78, 89)
+            with sqlite3.connect(path) as db:
+                rows = db.execute("SELECT COUNT(*) FROM announced WHERE key = ?", (key,)).fetchone()[0]
+            self.assertEqual(rows, 1)
 
     def test_http_redirect_base_is_not_used_for_app_buttons(self):
         info = announcer.MediaInfo(title="Film", media_type="movie", imdb_id="tt1234567")
