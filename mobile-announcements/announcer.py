@@ -8,6 +8,7 @@ one formatted announcement per movie/series (or per episode when configured).
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
 import html
 import logging
 import os
@@ -186,7 +187,7 @@ class AnnouncementStore:
     def __init__(self, path: Path):
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as db:
+        with self._db() as db:
             db.execute(
                 """
                 CREATE TABLE IF NOT EXISTS announced (
@@ -206,6 +207,18 @@ class AnnouncementStore:
         db.execute("PRAGMA journal_mode=WAL")
         db.execute("PRAGMA busy_timeout=20000")
         return db
+
+    @contextmanager
+    def _db(self):
+        db = self._connect()
+        try:
+            yield db
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
     def has(self, key: str) -> bool:
         with self._connect() as db:
@@ -250,7 +263,7 @@ def _message_file_name(message: Any) -> str:
                 return str(name)
             mime = str(getattr(obj, "mime_type", "") or "").lower()
             if mime.startswith("video/"):
-                return f"video_{getattr(message, 'id', 'unknown')}.mkv"
+                return ""
     return ""
 
 
@@ -316,6 +329,20 @@ def parse_media(file_name: str, caption: str = "") -> MediaInfo | None:
     guessed_type = str(parsed.get("type") or "").lower()
     season = _safe_int(parsed.get("season"))
     episode = _safe_int(parsed.get("episode"))
+
+    # Keep TV detection working even when guessit is unavailable, which is useful
+    # for lightweight diagnostics and conservative fallback parsing.
+    se_match = SEASON_EPISODE_RE.search(source)
+    x_match = X_EPISODE_RE.search(source)
+    ep_match = EPISODE_ONLY_RE.search(source)
+    if se_match:
+        season = season if season is not None else int(se_match.group(1))
+        episode = episode if episode is not None else int(se_match.group(2))
+    elif x_match:
+        season = season if season is not None else int(x_match.group(1))
+        episode = episode if episode is not None else int(x_match.group(2))
+    elif episode is None and ep_match:
+        episode = int(ep_match.group(1))
     is_series = guessed_type in {"episode", "tv"} or season is not None or episode is not None
 
     if not title:
@@ -522,6 +549,7 @@ def build_caption(info: MediaInfo) -> str:
 def build_keyboard(info: MediaInfo, public_base_url: str = "") -> InlineKeyboardMarkup | None:
     rows: list[list[InlineKeyboardButton]] = []
     media_path_type = "series" if info.media_type == "series" else "movie"
+    public_base_url = public_base_url if public_base_url.startswith("https://") else ""
 
     if public_base_url and info.imdb_id:
         rows.append([
