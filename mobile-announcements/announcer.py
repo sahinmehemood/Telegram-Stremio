@@ -23,6 +23,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
 
+# PyroFork 2.3.x creates its sync-wrapper loop during import. Python 3.14 no
+# longer creates a default event loop implicitly, so initialize one explicitly.
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
 try:
     import httpx
 except ImportError:
@@ -834,7 +841,7 @@ async def main() -> None:
     )
     worker = AnnouncementWorker(app, config)
     app.add_handler(MessageHandler(worker.handle, filters.channel), group=-1)
-    app.add_handler(DeletedMessagesHandler(worker.handle_deleted, filters.channel), group=-1)
+    app.add_handler(DeletedMessagesHandler(worker.handle_deleted), group=-1)
 
     try:
         await app.start()
