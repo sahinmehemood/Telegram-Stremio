@@ -3,6 +3,7 @@ import sys
 import tempfile
 import sqlite3
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -170,6 +171,49 @@ class AnnouncementFormattingTests(unittest.TestCase):
         buttons = [button for row in markup.inline_keyboard for button in row]
         self.assertTrue(all(button.url.startswith("https://") for button in buttons))
         self.assertIn("imdb.com/title/tt1234567", buttons[0].url)
+
+
+class PosterFallbackTests(unittest.IsolatedAsyncioTestCase):
+    async def test_network_error_does_not_immediately_send_duplicate_text_post(self):
+        worker = object.__new__(announcer.AnnouncementWorker)
+        worker.config = SimpleNamespace(public_base_url="")
+        worker.client = SimpleNamespace(
+            send_photo=AsyncMock(side_effect=OSError("connection timed out")),
+            send_message=AsyncMock(return_value=object()),
+        )
+        info = announcer.MediaInfo(
+            title="Poster Timeout Film",
+            media_type="movie",
+            poster="https://images.example.org/poster.jpg",
+        )
+
+        with self.assertRaises(OSError):
+            await worker._send_announcement(info)
+
+        worker.client.send_message.assert_not_awaited()
+
+    async def test_telegram_api_rejection_falls_back_to_text_post(self):
+        class FakeRPCError(Exception):
+            pass
+
+        worker = object.__new__(announcer.AnnouncementWorker)
+        worker.config = SimpleNamespace(public_base_url="")
+        sent_message = object()
+        worker.client = SimpleNamespace(
+            send_photo=AsyncMock(side_effect=FakeRPCError("invalid poster URL")),
+            send_message=AsyncMock(return_value=sent_message),
+        )
+        info = announcer.MediaInfo(
+            title="Fallback Film",
+            media_type="movie",
+            poster="https://images.example.org/poster.jpg",
+        )
+
+        with patch.object(announcer, "RPCError", FakeRPCError):
+            result = await worker._send_announcement(info)
+
+        self.assertIs(result, sent_message)
+        worker.client.send_message.assert_awaited_once()
 
 
 class RetryTests(unittest.IsolatedAsyncioTestCase):
