@@ -86,6 +86,15 @@ class ParseMediaTests(unittest.TestCase):
         self.assertIsNotNone(caption_only)
         self.assertIn("Dune", caption_only.title)
 
+    def test_bengali_and_japanese_titles_parse_without_ascii_loss(self):
+        with patch.object(announcer, "guessit", None):
+            bengali = announcer.parse_media("পথের_পাঁচালী.1955.1080p.mkv")
+            japanese = announcer.parse_media("君の名は.2016.1080p.mkv")
+        self.assertIsNotNone(bengali)
+        self.assertIsNotNone(japanese)
+        self.assertIn("পথের", bengali.title)
+        self.assertIn("君の名は", japanese.title)
+
     def test_title_with_only_release_tags_is_skipped(self):
         with patch.object(announcer, "guessit", None):
             info = announcer.parse_media("1080p.WEB-DL.x265.mkv")
@@ -321,6 +330,34 @@ class AsyncWorkerTests(unittest.IsolatedAsyncioTestCase):
             await worker.handle_deleted(client, [SimpleNamespace(chat=SimpleNamespace(id=-100123), id=77)])
 
             self.assertFalse(worker.store.has(key))
+
+    async def test_series_episode_flag_controls_real_posts(self):
+        async def run_case(announce_each_episode):
+            with tempfile.TemporaryDirectory() as temporary:
+                sent1 = SimpleNamespace(id=900, chat=SimpleNamespace(id=-100555))
+                sent2 = SimpleNamespace(id=901, chat=SimpleNamespace(id=-100555))
+                client = SimpleNamespace(
+                    send_photo=AsyncMock(),
+                    send_message=AsyncMock(side_effect=[sent1, sent2]),
+                    delete_messages=AsyncMock(),
+                )
+                info_stub = announcer.MediaInfo(title="Show Name", media_type="series", imdb_id="tt1234567")
+                worker = self._worker(temporary, info_stub, client)
+                worker.config.announce_each_episode = announce_each_episode
+                worker.metadata.enrich = AsyncMock(side_effect=lambda parsed: parsed)
+                with patch.object(announcer, "guessit", None):
+                    await worker.handle(
+                        client,
+                        fake_message(file_name="Show.Name.S02E05.1080p.tt1234567.mkv", message_id=77),
+                    )
+                    await worker.handle(
+                        client,
+                        fake_message(file_name="Show.Name.S02E06.720p.tt1234567.mkv", message_id=78),
+                    )
+                return client.send_message.await_count
+
+        self.assertEqual(await run_case(False), 1)
+        self.assertEqual(await run_case(True), 2)
 
     async def test_flood_wait_sleeps_then_retries_exactly_once(self):
         class FakeFloodWait(Exception):
