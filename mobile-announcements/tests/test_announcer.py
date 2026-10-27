@@ -197,7 +197,7 @@ class PosterFallbackTests(unittest.IsolatedAsyncioTestCase):
             pass
 
         worker = object.__new__(announcer.AnnouncementWorker)
-        worker.config = SimpleNamespace(public_base_url="")
+        worker.config = SimpleNamespace(public_base_url="", announcement_channel="@test_channel")
         sent_message = object()
         worker.client = SimpleNamespace(
             send_photo=AsyncMock(side_effect=FakeRPCError("invalid poster URL")),
