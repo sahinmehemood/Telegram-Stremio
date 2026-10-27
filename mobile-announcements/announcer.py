@@ -797,7 +797,7 @@ class AnnouncementWorker:
                 for row in self.store.find_source_message(chat_id, message_id):
                     try:
                         await self.client.delete_messages(
-                            chat_id=row["sent_chat_id"],
+                            chat_id=_parse_chat(str(row["sent_chat_id"])),
                             message_ids=[int(row["sent_message_id"])],
                         )
                         logging.info("Deleted announcement for removed source message %s.", message_id)
