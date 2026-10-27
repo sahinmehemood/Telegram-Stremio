@@ -303,6 +303,7 @@ def _fallback_title(file_name: str, caption: str) -> str:
     name = re.sub(r"(?i)\.(mkv|mp4|m4v|avi|mov|webm|mpg|mpeg|ts|m2ts|wmv|flv|zip|rar|7z)(?:\.\d{3})?$", "", name)
     name = SEASON_EPISODE_RE.sub(" ", name)
     name = X_EPISODE_RE.sub(" ", name)
+    name = EPISODE_ONLY_RE.sub(" ", name)
     name = re.sub(r"(?i)\b(?:2160p?|4k|1440p|1080p|720p|576p|480p|360p|web[- .]?dl|webrip|bluray|blu-ray|brrip|bdrip|hdtv|hdr10?\+?|dolby.?vision|dv|hevc|x265|h265|x264|h264|av1|aac|ddp?\d(?:\.\d)?|dts(?:-hd)?|proper|repack|remux)\b.*$", " ", name)
     name = re.sub(r"\b(19|20)\d{2}\b.*$", " ", name)
     name = re.sub(r"[\[\](){}]", " ", name)
@@ -618,7 +619,7 @@ class AnnouncementWorker:
                     logging.info("Already announced: %s", info.title)
                     return
 
-                sent = await self._send_announcement(info)
+                sent = await self._send_announcement_with_retry(info)
                 if sent is None:
                     logging.error("Could not publish announcement for %s", info.title)
                     return
@@ -637,6 +638,25 @@ class AnnouncementWorker:
                 logging.warning("Telegram flood wait: %ss. Skipping this attempt; the next matching media may retry.", wait_seconds)
             except Exception:
                 logging.exception("Announcement failed for media file %r", file_name)
+
+    async def _send_announcement_with_retry(self, info: MediaInfo) -> Any | None:
+        """Retry brief Telegram/network failures without marking the title announced."""
+        for attempt in range(3):
+            try:
+                return await self._send_announcement(info)
+            except FloodWait as exc:
+                wait_seconds = max(1, int(getattr(exc, "value", 1)))
+                if wait_seconds > 120 or attempt == 2:
+                    raise
+                logging.warning("Telegram requested a %ss wait; retrying afterwards.", wait_seconds)
+                await asyncio.sleep(wait_seconds + 1)
+            except Exception:
+                if attempt == 2:
+                    raise
+                delay = 2 ** attempt
+                logging.warning("Send attempt %s failed; retrying in %ss.", attempt + 1, delay, exc_info=True)
+                await asyncio.sleep(delay)
+        return None
 
     async def _send_announcement(self, info: MediaInfo) -> Any | None:
         caption = build_caption(info)
