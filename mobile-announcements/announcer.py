@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import sqlite3
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
@@ -381,7 +382,10 @@ def parse_media(file_name: str, caption: str = "") -> MediaInfo | None:
 
 
 def _normalize_title(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", (value or "").casefold())
+    # Preserve non-Latin titles (for example Chinese, Japanese, Bengali and Hindi)
+    # so unrelated titles never collapse to the same empty dedupe key.
+    normalized = unicodedata.normalize("NFKC", value or "").casefold()
+    return "".join(char for char in normalized if char.isalnum())
 
 
 def _metadata_match_score(wanted_title: str, wanted_year: str, candidate: dict[str, Any]) -> float:
