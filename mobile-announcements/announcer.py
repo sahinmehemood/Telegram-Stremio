@@ -676,21 +676,24 @@ class AnnouncementWorker:
                 logging.exception("Announcement failed for media file %r", file_name)
 
     async def _send_announcement_with_retry(self, info: MediaInfo) -> Any | None:
-        """Retry brief Telegram/network failures without marking the title announced."""
-        for attempt in range(3):
+        """Retry Telegram rate limits and transient failures without dropping an event."""
+        transient_failures = 0
+        while transient_failures < 3:
             try:
                 return await self._send_announcement(info)
             except FloodWait as exc:
+                # Telegram explicitly tells us how long we must wait. Do not give up
+                # merely because the wait exceeds two minutes: this event won't
+                # necessarily be delivered to the worker again.
                 wait_seconds = max(1, int(getattr(exc, "value", 1)))
-                if wait_seconds > 120 or attempt == 2:
-                    raise
                 logging.warning("Telegram requested a %ss wait; retrying afterwards.", wait_seconds)
                 await asyncio.sleep(wait_seconds + 1)
             except Exception:
-                if attempt == 2:
+                transient_failures += 1
+                if transient_failures >= 3:
                     raise
-                delay = 2 ** attempt
-                logging.warning("Send attempt %s failed; retrying in %ss.", attempt + 1, delay, exc_info=True)
+                delay = 2 ** (transient_failures - 1)
+                logging.warning("Send attempt %s failed; retrying in %ss.", transient_failures, delay, exc_info=True)
                 await asyncio.sleep(delay)
         return None
 
