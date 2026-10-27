@@ -521,35 +521,67 @@ def _clean_rating(value: str) -> str:
 
 
 def build_caption(info: MediaInfo) -> str:
+    """Create valid Telegram HTML that remains within a conservative caption limit."""
     is_series = info.media_type == "series"
-    header = f"{'📺' if is_series else '🎬'} <b>{html.escape(info.title or 'Unknown media')}</b>"
-    if info.year:
-        header += f" ({html.escape(info.year)})"
-
-    lines = [header, "", f"🗂 <b>Type:</b> {'Series' if is_series else 'Movie'}"]
+    title_raw = re.sub(r"\s+", " ", info.title or "Unknown media").strip()[:120]
+    year_raw = re.sub(r"\s+", " ", info.year or "").strip()[:4]
+    quality_raw = re.sub(r"\s+", " ", info.quality or "").strip()[:40]
+    genres_raw = [
+        re.sub(r"\s+", " ", str(genre)).strip()[:24]
+        for genre in (info.genres or [])[:4]
+        if str(genre).strip()
+    ]
+    description_raw = re.sub(r"\s+", " ", (info.description or "").strip())[:260]
     rating = _clean_rating(info.rating)
-    if rating:
-        lines.append(f"⭐ <b>Rating:</b> {rating}/10")
-    if info.genres:
-        genre_text = ", ".join(info.genres[:4])
-        lines.append(f"🎭 <b>Genres:</b> {html.escape(genre_text)}")
-    if info.quality:
-        lines.append(f"📶 <b>Quality:</b> {html.escape(info.quality)}")
-    if is_series and info.season is not None and info.episode is not None:
-        lines.append(f"📺 <b>Episode:</b> S{info.season:02d}E{info.episode:02d}")
 
-    description = (info.description or "").strip()
-    if description:
-        # Photo captions in Telegram have a strict 1024-character limit.
-        description = re.sub(r"\s+", " ", description)
-        description = description[:260].rstrip()
-        lines.extend(["", f"<i>{html.escape(description)}</i>"])
+    def compose(title_limit: int, genre_count: int, description_limit: int) -> str:
+        title = html.escape(title_raw[:title_limit])
+        header = f"{'📺' if is_series else '🎬'} <b>{title}</b>"
+        if year_raw:
+            header += f" ({html.escape(year_raw)})"
 
-    caption = "\n".join(lines)
-    if len(caption) <= 900:
-        return caption
-    return caption[:895].rstrip() + "..."
+        lines = [header, "", f"🗂 <b>Type:</b> {'Series' if is_series else 'Movie'}"]
+        if rating:
+            lines.append(f"⭐ <b>Rating:</b> {rating}/10")
+        visible_genres = genres_raw[:genre_count]
+        if visible_genres:
+            genre_text = ", ".join(visible_genres)
+            lines.append(f"🎭 <b>Genres:</b> {html.escape(genre_text)}")
+        if quality_raw:
+            lines.append(f"📶 <b>Quality:</b> {html.escape(quality_raw)}")
+        if is_series and info.season is not None and info.episode is not None:
+            lines.append(f"📺 <b>Episode:</b> S{info.season:02d}E{info.episode:02d}")
 
+        description = description_raw[:description_limit]
+        if description:
+            lines.extend(["", f"<i>{html.escape(description)}</i>"])
+        return "\n".join(lines)
+
+    # Do not slice the final HTML string: arbitrary slicing can break tags/entities.
+    # Instead shorten source fields and compose the entire message again each time.
+    title_limit = len(title_raw)
+    genre_count = len(genres_raw)
+    description_limit = len(description_raw)
+    caption = compose(title_limit, genre_count, description_limit)
+
+    while len(caption) > 900 and description_limit > 0:
+        description_limit = max(0, description_limit - 10)
+        caption = compose(title_limit, genre_count, description_limit)
+
+    while len(caption) > 900 and genre_count > 0:
+        genre_count -= 1
+        caption = compose(title_limit, genre_count, description_limit)
+
+    while len(caption) > 900 and title_limit > 32:
+        title_limit = max(32, title_limit - 10)
+        caption = compose(title_limit, genre_count, description_limit)
+
+    if len(caption) > 900:
+        # Defensive fallback for pathological metadata values.
+        short_title = html.escape(title_raw[:40])
+        return f"{'📺' if is_series else '🎬'} <b>{short_title}</b>"
+
+    return caption
 
 def build_keyboard(info: MediaInfo, public_base_url: str = "") -> InlineKeyboardMarkup | None:
     rows: list[list[InlineKeyboardButton]] = []
