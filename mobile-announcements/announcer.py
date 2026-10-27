@@ -34,7 +34,7 @@ except ImportError:
 
 from pyrogram import Client, filters, idle
 from pyrogram.enums import ParseMode
-from pyrogram.errors import FloodWait
+from pyrogram.errors import FloodWait, RPCError
 from pyrogram.handlers import MessageHandler
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -711,8 +711,12 @@ class AnnouncementWorker:
                 )
             except FloodWait:
                 raise
-            except Exception as exc:
-                logging.warning("Poster post failed (%s); retrying as text.", type(exc).__name__)
+            except RPCError as exc:
+                # Fall back only for a Telegram API rejection (e.g. an invalid
+                # remote image). Network/time-out exceptions are ambiguous: Telegram
+                # may already have accepted the photo, so let retry logic handle them
+                # rather than immediately creating a second text post.
+                logging.warning("Telegram rejected poster (%s); retrying as text.", type(exc).__name__)
 
         return await self.client.send_message(
             chat_id=self.config.announcement_channel,
