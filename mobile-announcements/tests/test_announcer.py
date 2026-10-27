@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("mobile_announcer", ROOT / "announcer.py")
 announcer = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
+sys.modules[SPEC.name] = announcer
 SPEC.loader.exec_module(announcer)
 
 
