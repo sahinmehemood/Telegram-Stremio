@@ -65,6 +65,12 @@ class AnnouncementFormattingTests(unittest.TestCase):
         two = announcer.MediaInfo(title="Example Film", media_type="movie", year="2024", imdb_id="tt1234567", quality="2160p")
         self.assertEqual(announcer.dedupe_key(one), announcer.dedupe_key(two))
 
+    def test_non_latin_titles_remain_distinct(self):
+        first = announcer.MediaInfo(title="仙逆 Renegade Immortal", media_type="series", year="2023")
+        second = announcer.MediaInfo(title="完美世界 Perfect World", media_type="series", year="2021")
+        self.assertNotEqual(announcer.dedupe_key(first), announcer.dedupe_key(second))
+        self.assertTrue(announcer._normalize_title(first.title))
+
     def test_episode_level_dedupe_is_optional(self):
         first = announcer.MediaInfo(title="Example Series", media_type="series", imdb_id="tt1234567", season=1, episode=1)
         second = announcer.MediaInfo(title="Example Series", media_type="series", imdb_id="tt1234567", season=1, episode=2)
