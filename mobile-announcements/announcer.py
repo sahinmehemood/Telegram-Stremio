@@ -345,7 +345,7 @@ def parse_media(file_name: str, caption: str = "") -> MediaInfo | None:
         episode = episode if episode is not None else int(x_match.group(2))
     elif episode is None and ep_match:
         episode = int(ep_match.group(1))
-    is_series = guessed_type in {"episode", "tv"} or season is not None or episode is not None
+    is_series = guessed_type in {"episode", "tv", "series"} or season is not None or episode is not None
 
     if not title:
         title = _fallback_title(source, caption)
