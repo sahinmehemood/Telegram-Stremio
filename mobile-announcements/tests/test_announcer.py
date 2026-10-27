@@ -176,7 +176,7 @@ class AnnouncementFormattingTests(unittest.TestCase):
 class PosterFallbackTests(unittest.IsolatedAsyncioTestCase):
     async def test_network_error_does_not_immediately_send_duplicate_text_post(self):
         worker = object.__new__(announcer.AnnouncementWorker)
-        worker.config = SimpleNamespace(public_base_url="")
+        worker.config = SimpleNamespace(public_base_url="", announcement_channel="@test_channel")
         worker.client = SimpleNamespace(
             send_photo=AsyncMock(side_effect=OSError("connection timed out")),
             send_message=AsyncMock(return_value=object()),
