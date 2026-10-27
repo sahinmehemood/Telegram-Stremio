@@ -1,0 +1,9 @@
+.env
+*.session*
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+*.log
+__pycache__/
+.venv/

@@ -1,0 +1,4 @@
+# Pin runtime dependencies for reproducible Termux installs.
+pyrofork==2.3.61
+httpx==0.28.1
+guessit==3.8.0
