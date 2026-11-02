@@ -13,6 +13,7 @@ SPEC.loader.exec_module(video_filter)
 is_below_minimum_video_size = video_filter.is_below_minimum_video_size
 normalize_minimum_video_size_enabled = video_filter.normalize_minimum_video_size_enabled
 normalize_minimum_video_size_mb = video_filter.normalize_minimum_video_size_mb
+is_video_file = video_filter.is_video_file
 
 
 class MinimumVideoSizeFilterTests(unittest.TestCase):
@@ -47,6 +48,13 @@ class MinimumVideoSizeFilterTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     normalize_minimum_video_size_enabled(value)
+
+    def test_video_document_detection_uses_mime_or_extension(self):
+        self.assertTrue(is_video_file("video/mp4", "clip.bin"))
+        self.assertTrue(is_video_file("application/octet-stream", "movie.mkv"))
+        self.assertTrue(is_video_file(None, "movie.MP4"))
+        self.assertFalse(is_video_file("application/zip", "archive.rar"))
+        self.assertFalse(is_video_file(None, "poster.jpg"))
 
     def test_threshold_accepts_whole_numbers_only(self):
         self.assertEqual(normalize_minimum_video_size_mb(50), 50)
