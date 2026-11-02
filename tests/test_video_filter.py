@@ -1,6 +1,16 @@
+import importlib.util
+from pathlib import Path
 import unittest
 
-from Backend.helper.video_filter import is_below_minimum_video_size
+
+# Load this pure helper directly: importing Backend.helper normally executes
+# Backend/__init__.py, which constructs the MongoDB Database singleton and
+# intentionally requires production DATABASE configuration.
+MODULE_PATH = Path(__file__).resolve().parents[1] / "Backend" / "helper" / "video_filter.py"
+SPEC = importlib.util.spec_from_file_location("video_filter_under_test", MODULE_PATH)
+video_filter = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(video_filter)
+is_below_minimum_video_size = video_filter.is_below_minimum_video_size
 
 
 class MinimumVideoSizeFilterTests(unittest.TestCase):
