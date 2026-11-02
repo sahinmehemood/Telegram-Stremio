@@ -1787,7 +1787,7 @@ async def update_settings_api(payload: dict) -> dict:
         del payload["session_secret"]
 
     #----- Type coercion and validation
-    bool_keys = {"replace_mode", "duplicate_protection", "hide_catalog", "subscription", "show_proxy_and_non_proxy_both", "mediaflow_proxy", "announce_new_content", "delete_on_metadata_fail", "better_poster_enabled", "rpdb_enabled", "spatial_poster_enabled", "fanart_enabled", "fanart_shuffle", "fanart_low_res_poster"}
+    bool_keys = {"replace_mode", "duplicate_protection", "minimum_video_size_enabled", "hide_catalog", "subscription", "show_proxy_and_non_proxy_both", "mediaflow_proxy", "announce_new_content", "delete_on_metadata_fail", "better_poster_enabled", "rpdb_enabled", "spatial_poster_enabled", "fanart_enabled", "fanart_shuffle", "fanart_low_res_poster"}
     for key in bool_keys:
         if key in payload:
             payload[key] = bool(payload[key])
@@ -1834,6 +1834,14 @@ async def update_settings_api(payload: dict) -> dict:
             payload["fanart_shuffle_interval"] = max(0, int(payload["fanart_shuffle_interval"]))
         except (ValueError, TypeError):
             payload["fanart_shuffle_interval"] = 5
+
+    if "minimum_video_size_mb" in payload:
+        try:
+            payload["minimum_video_size_mb"] = int(payload["minimum_video_size_mb"])
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Minimum video size must be a whole number of MB.")
+        if not 0 <= payload["minimum_video_size_mb"] <= 102400:
+            raise HTTPException(status_code=400, detail="Minimum video size must be between 0 and 102400 MB.")
 
     if len([k for k in ("better_poster_enabled", "rpdb_enabled", "spatial_poster_enabled", "fanart_enabled") if payload.get(k)]) > 1:
         raise HTTPException(status_code=400, detail="Enable only one poster provider at a time")
