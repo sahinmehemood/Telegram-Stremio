@@ -312,7 +312,19 @@ def _override_matches_indexed(override_id: str, imdb_id, tmdb_id) -> bool:
 #----- Edited file: same title (or no id) renames it, another title's id re-indexes it
 @Client.on_edited_message(filters.channel & (filters.document | filters.video))
 async def file_edited_handler(client: Client, message: Message):
-    if str(message.chat.id) not in SettingsManager.current().auth_channels:
+    is_auth_channel = str(message.chat.id) in SettingsManager.current().auth_channels
+    is_manual_channel = _is_manual_channel(message.chat.id)
+    if not is_auth_channel:
+        # Manual channels are normally excluded from edit processing, but a file
+        # that shrinks below the indexing threshold must lose its stale index entry.
+        if is_manual_channel and _below_minimum_video_size(message):
+            channel = str(message.chat.id).replace("-100", "")
+            async with db_lock:
+                removed = await db.remove_media_part(int(channel), message.id)
+            LOGGER.info(
+                f"Skipping edited undersized video {message.id} in manual channel {message.chat.id}: "
+                f"removed prior index reference: {bool(removed)}. Telegram original left untouched."
+            )
         return
     if _below_minimum_video_size(message):
         channel = str(message.chat.id).replace("-100", "")
