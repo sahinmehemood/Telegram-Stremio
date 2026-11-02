@@ -33,7 +33,13 @@ def _is_video_message(message: Message) -> bool:
     if message.video:
         return True
     if message.document:
-        return (message.document.mime_type or "").startswith("video/")
+        if (message.document.mime_type or "").startswith("video/"):
+            return True
+        filename = (message.document.file_name or "").lower()
+        return filename.endswith((
+            ".mkv", ".mp4", ".m4v", ".avi", ".mov", ".wmv", ".flv",
+            ".webm", ".mpg", ".mpeg", ".ts", ".m2ts", ".3gp", ".ogv", ".vob",
+        ))
     return False
 
 
@@ -309,10 +315,14 @@ async def file_edited_handler(client: Client, message: Message):
     if str(message.chat.id) not in SettingsManager.current().auth_channels:
         return
     if _below_minimum_video_size(message):
+        channel = str(message.chat.id).replace("-100", "")
+        async with db_lock:
+            removed = await db.remove_media_part(int(channel), message.id)
         LOGGER.info(
             f"Skipping edited undersized video {message.id} in channel {message.chat.id}: "
             f"{get_readable_file_size((message.video or message.document).file_size)} "
-            f"is below {SettingsManager.current().minimum_video_size_mb} MB. Existing index entry is left unchanged."
+            f"is below {SettingsManager.current().minimum_video_size_mb} MB. "
+            f"Removed prior index reference: {bool(removed)}. Telegram original left untouched."
         )
         return
     try:
