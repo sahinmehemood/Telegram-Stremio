@@ -40,3 +40,17 @@ def normalize_minimum_video_size_mb(value: object) -> int:
     if not 0 <= size_mb <= 102400:
         raise ValueError("Minimum video size must be between 0 and 102400 MB.")
     return size_mb
+
+
+
+_VIDEO_EXTENSIONS = (
+    ".mkv", ".mp4", ".m4v", ".avi", ".mov", ".wmv", ".flv",
+    ".webm", ".mpg", ".mpeg", ".ts", ".m2ts", ".3gp", ".ogv", ".vob",
+)
+
+
+def is_video_file(mime_type: str | None, file_name: str | None) -> bool:
+    """Recognize Telegram video documents by MIME type or common file extension."""
+    if (mime_type or "").lower().startswith("video/"):
+        return True
+    return (file_name or "").lower().endswith(_VIDEO_EXTENSIONS)
