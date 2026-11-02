@@ -20,7 +20,7 @@ from Backend.helper.skip_channel import is_skip_channel, route_to_skip_channel
 from Backend.helper.split_files import parse_split_info
 from Backend.helper.subtitles import ingest_subtitle, is_subtitle_file, remove_subtitle
 from Backend.helper.task_manager import delete_message
-from Backend.helper.video_filter import is_below_minimum_video_size
+from Backend.helper.video_filter import is_below_minimum_video_size, is_video_file
 from Backend.logger import LOGGER
 
 file_queue = Queue()
@@ -33,13 +33,7 @@ def _is_video_message(message: Message) -> bool:
     if message.video:
         return True
     if message.document:
-        if (message.document.mime_type or "").startswith("video/"):
-            return True
-        filename = (message.document.file_name or "").lower()
-        return filename.endswith((
-            ".mkv", ".mp4", ".m4v", ".avi", ".mov", ".wmv", ".flv",
-            ".webm", ".mpg", ".mpeg", ".ts", ".m2ts", ".3gp", ".ogv", ".vob",
-        ))
+        return is_video_file(message.document.mime_type, message.document.file_name)
     return False
 
 
