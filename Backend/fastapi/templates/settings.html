@@ -269,6 +269,29 @@
         </div>
     </div>
 
+    <!-- ── Media ingestion ──────────────────────────────────────────────── -->
+    <div class="settings-card">
+        <h2><i class="fa-solid fa-filter"></i> Video indexing filter</h2>
+        <label class="toggle-wrap">
+            <input type="checkbox" class="toggle-input" id="minimum_video_size_enabled"
+                {% if settings.minimum_video_size_enabled is not defined or settings.minimum_video_size_enabled %}checked{% endif %}>
+            <span class="toggle-track"></span>
+            <span class="toggle-label">
+                <strong>Skip small videos</strong>
+                <span style="color:var(--text-sec);font-size:0.8rem;display:block">
+                    Apply to every configured indexing channel. Files below the threshold are ignored before metadata lookup; Telegram originals are never deleted or modified.
+                </span>
+            </span>
+        </label>
+        <div style="margin-top:1rem;max-width:20rem">
+            <label class="s-label" for="minimum_video_size_mb">Minimum video size (MB)</label>
+            <input type="number" id="minimum_video_size_mb" class="s-input"
+                min="0" max="102400" step="1"
+                value="{{ settings.minimum_video_size_mb|default(50) }}">
+            <p class="hint" style="margin-top:0.4rem">Default: 50 MB. Videos smaller than this value are skipped. A video exactly at the threshold is indexed. Set 0 or turn the filter off to disable size-based skipping.</p>
+        </div>
+    </div>
+
     <!-- ── Authentication ──────────────────────────────────────────────── -->
     <div class="settings-card">
         <h2><i class="fa-solid fa-shield-halved"></i> Admin Authentication</h2>
@@ -1665,6 +1688,8 @@ async function saveSettings() {
     const payload = {
         replace_mode:                  document.getElementById('replace_mode').checked,
         duplicate_protection:          document.getElementById('duplicate_protection').checked,
+        minimum_video_size_enabled:    document.getElementById('minimum_video_size_enabled').checked,
+        minimum_video_size_mb:         document.getElementById('minimum_video_size_mb').value,
         hide_catalog:                  document.getElementById('hide_catalog').checked,
         admin_username:                document.getElementById('admin_username').value.trim(),
         admin_password:                document.getElementById('admin_password').value,  // blank = keep
@@ -1814,6 +1839,8 @@ function renderSettings(s) {
     // Toggles
     document.getElementById('replace_mode').checked = !!s.replace_mode;
     document.getElementById('duplicate_protection').checked = !!s.duplicate_protection;
+    document.getElementById('minimum_video_size_enabled').checked = s.minimum_video_size_enabled !== false;
+    document.getElementById('minimum_video_size_mb').value = s.minimum_video_size_mb ?? 50;
     toggleDuplicateProtection();
     document.getElementById('hide_catalog').checked = !!s.hide_catalog;
     document.getElementById('subscription').checked = !!s.subscription;
