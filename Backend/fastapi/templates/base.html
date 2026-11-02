@@ -440,6 +440,64 @@ textarea:-webkit-autofill {
 }
 
 #mobile-menu { will-change: max-height, opacity; }
+
+/* Phone-first navigation: persistent thumb-reachable destinations. */
+.mobile-bottom-nav { display: none; }
+@media (max-width: 767px) {
+    body { padding-bottom: calc(4.75rem + env(safe-area-inset-bottom)); }
+    main { padding-bottom: 1rem; }
+    #navbar {
+        top: max(.65rem, env(safe-area-inset-top));
+        width: calc(100% - 1.25rem);
+        padding: .55rem .85rem;
+        border-radius: 1.15rem;
+        grid-template-columns: minmax(0,1fr) auto;
+        gap: .5rem;
+    }
+    #navbar > a { min-width: 0; }
+    #navbar > a span { font-size: 1rem; }
+    #menu-btn { display: none; }
+    #mobile-menu { top: calc(100% + .5rem); }
+    .mobile-bottom-nav {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0,1fr));
+        position: fixed;
+        z-index: 55;
+        left: .65rem;
+        right: .65rem;
+        bottom: max(.55rem, env(safe-area-inset-bottom));
+        min-height: 4.15rem;
+        padding: .4rem .25rem;
+        border: 1px solid var(--hairline-strong);
+        border-radius: 1.35rem;
+        background: color-mix(in srgb, var(--card) 88%, transparent);
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        box-shadow: 0 12px 34px rgba(0,0,0,.22);
+    }
+    .mobile-bottom-link {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .22rem;
+        border-radius: .95rem;
+        color: var(--text-sec);
+        font-size: .64rem;
+        font-weight: 700;
+        line-height: 1;
+        text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .mobile-bottom-link i { font-size: 1.05rem; }
+    .mobile-bottom-link.active {
+        color: var(--primary);
+        background: color-mix(in srgb, var(--primary) 13%, transparent);
+    }
+    .mobile-bottom-link:active { transform: scale(.96); }
+    footer { padding-bottom: 1rem !important; }
+}
 </style>
 
 <script>
@@ -621,6 +679,26 @@ if (!navigator.clipboard) Object.defineProperty(navigator, 'clipboard', { value:
     </div>
 </nav>
 
+{% if current_user %}
+<nav class="mobile-bottom-nav md:hidden" aria-label="Primary mobile navigation">
+    <a href="/" class="mobile-bottom-link" data-mobile-path="/">
+        <i class="fa-solid fa-house"></i><span>Home</span>
+    </a>
+    <a href="/media/manage" class="mobile-bottom-link" data-mobile-path="/media/manage">
+        <i class="fa-solid fa-clapperboard"></i><span>Media</span>
+    </a>
+    <a href="/admin/dashboard" class="mobile-bottom-link" data-mobile-path="/admin/dashboard">
+        <i class="fa-solid fa-chart-line"></i><span>Admin</span>
+    </a>
+    <a href="/admin/settings" class="mobile-bottom-link" data-mobile-path="/admin/settings">
+        <i class="fa-solid fa-gear"></i><span>Settings</span>
+    </a>
+    <button type="button" class="mobile-bottom-link" aria-label="Open more navigation" onclick="toggleMenu()">
+        <i class="fa-solid fa-ellipsis"></i><span>More</span>
+    </button>
+</nav>
+{% endif %}
+
 <main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
     {% block content %}{% endblock %}
 </main>
@@ -645,6 +723,13 @@ const navbar = document.getElementById('navbar');
 const userBtn = document.getElementById('user-btn');
 const userDropdown = document.getElementById('user-dropdown');
 const navContainer = document.getElementById('nav-container');
+
+document.querySelectorAll('.mobile-bottom-link[data-mobile-path]').forEach(link => {
+    const path = link.dataset.mobilePath;
+    const active = path === '/' ? window.location.pathname === '/' : window.location.pathname.startsWith(path);
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page');
+});
 
 let isMenuOpen = false;
 let isUserOpen = false;

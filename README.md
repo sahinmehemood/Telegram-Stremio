@@ -675,6 +675,7 @@ Open **Settings** (`/admin/settings`) after logging in. Here's what each card do
 | :--- | :--- |
 | **Replace Mode** | When a new file has the same quality (`720p`, `1080p`…) as an existing one, it replaces the old entry so you never get duplicates. Recommended **ON**. |
 | **Hide Catalog** | Hides the public Stremio catalog (direct stream links still work). |
+| **Skip Small Videos** | By default, videos smaller than **50 MB** are skipped before metadata lookup on all indexed channels. Change or disable the threshold in **Settings → Video indexing filter**. The original Telegram message is never deleted or modified. |
 
 ### 🛡️ Admin Authentication
 | Field | What to enter |

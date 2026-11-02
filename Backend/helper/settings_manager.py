@@ -12,6 +12,8 @@ from Backend.logger import LOGGER
 _DEFAULTS: Dict[str, Any] = {
     "replace_mode": True,
     "duplicate_protection": False,
+    "minimum_video_size_enabled": True,
+    "minimum_video_size_mb": 50,
     "hide_catalog": False,
     "auth_channels": [],
     "tmdb_api": "",
@@ -109,6 +111,10 @@ class Settings:
     @property
     def duplicate_protection(self) -> bool:
         return bool(self._d.get("duplicate_protection", False))
+
+    @property
+    def minimum_video_size_enabled(self) -> bool:
+        return bool(self._d.get("minimum_video_size_enabled", True))
 
     @property
     def hide_catalog(self) -> bool:
@@ -303,6 +309,13 @@ class Settings:
             return max(0, int(self._d.get("fanart_shuffle_interval", 5)))
         except (ValueError, TypeError):
             return 5
+
+    @property
+    def minimum_video_size_mb(self) -> int:
+        try:
+            return min(102400, max(0, int(self._d.get("minimum_video_size_mb", 50))))
+        except (ValueError, TypeError):
+            return 50
 
     #----- Lists
     @property

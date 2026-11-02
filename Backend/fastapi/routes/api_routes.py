@@ -18,6 +18,8 @@ import Backend
 from Backend import StartTime, __version__, db
 from Backend.fastapi.routes.stream_routes import _streamer_by_client
 from Backend.fastapi.routes.stremio_routes import invalidate_membership_cache
+from Backend.helper.video_filter import normalize_minimum_video_size_enabled, normalize_minimum_video_size_mb
+
 from Backend.helper.analytics import get_activity_overview
 from Backend.helper.auto_catalog import (
     get_auto_catalog_settings,
@@ -1792,6 +1794,14 @@ async def update_settings_api(payload: dict) -> dict:
         if key in payload:
             payload[key] = bool(payload[key])
 
+    if "minimum_video_size_enabled" in payload:
+        try:
+            payload["minimum_video_size_enabled"] = normalize_minimum_video_size_enabled(
+                payload["minimum_video_size_enabled"]
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
     list_str_keys = {"auth_channels", "multi_tokens", "extra_databases", "global_search_channels", "anime_channels", "manual_channels"}
     for key in list_str_keys:
         if key in payload:
@@ -1834,6 +1844,14 @@ async def update_settings_api(payload: dict) -> dict:
             payload["fanart_shuffle_interval"] = max(0, int(payload["fanart_shuffle_interval"]))
         except (ValueError, TypeError):
             payload["fanart_shuffle_interval"] = 5
+
+    if "minimum_video_size_mb" in payload:
+        try:
+            payload["minimum_video_size_mb"] = normalize_minimum_video_size_mb(
+                payload["minimum_video_size_mb"]
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     if len([k for k in ("better_poster_enabled", "rpdb_enabled", "spatial_poster_enabled", "fanart_enabled") if payload.get(k)]) > 1:
         raise HTTPException(status_code=400, detail="Enable only one poster provider at a time")

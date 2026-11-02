@@ -20,6 +20,7 @@ from Backend.helper.skip_channel import is_skip_channel, route_to_skip_channel
 from Backend.helper.split_files import parse_split_info
 from Backend.helper.subtitles import ingest_subtitle, is_subtitle_file, remove_subtitle
 from Backend.helper.task_manager import delete_message
+from Backend.helper.video_filter import is_below_minimum_video_size, is_video_file
 from Backend.logger import LOGGER
 
 file_queue = Queue()
@@ -28,6 +29,29 @@ manual_session_lock = Lock()
 
 
 #----- True when the message carries a streamable video or a split-archive part
+def _is_video_message(message: Message) -> bool:
+    if message.video:
+        return True
+    if message.document:
+        return is_video_file(message.document.mime_type, message.document.file_name)
+    return False
+
+
+def _below_minimum_video_size(message: Message) -> bool:
+    settings = SettingsManager.current()
+    if not settings.minimum_video_size_enabled or not _is_video_message(message):
+        return False
+    file = message.video or message.document
+    size = getattr(file, "file_size", None)
+    if size is None:
+        return False
+    return is_below_minimum_video_size(
+        size,
+        settings.minimum_video_size_mb,
+        enabled=settings.minimum_video_size_enabled,
+    )
+
+
 def _is_supported_media(message: Message) -> bool:
     if message.video:
         return True
@@ -208,6 +232,14 @@ async def file_receive_handler(client: Client, message: Message):
     if is_skip_channel(message):
         return
 
+    if _below_minimum_video_size(message):
+        LOGGER.info(
+            f"Skipping undersized video {message.id} in channel {message.chat.id}: "
+            f"{get_readable_file_size((message.video or message.document).file_size)} "
+            f"is below {SettingsManager.current().minimum_video_size_mb} MB. Original Telegram message left untouched."
+        )
+        return
+
     session = Backend.MANUAL_SESSION
     is_manual = _is_manual_channel(message.chat.id)
 
@@ -274,7 +306,30 @@ def _override_matches_indexed(override_id: str, imdb_id, tmdb_id) -> bool:
 #----- Edited file: same title (or no id) renames it, another title's id re-indexes it
 @Client.on_edited_message(filters.channel & (filters.document | filters.video))
 async def file_edited_handler(client: Client, message: Message):
-    if str(message.chat.id) not in SettingsManager.current().auth_channels:
+    is_auth_channel = str(message.chat.id) in SettingsManager.current().auth_channels
+    is_manual_channel = _is_manual_channel(message.chat.id)
+    if not is_auth_channel:
+        # Manual channels are normally excluded from edit processing, but a file
+        # that shrinks below the indexing threshold must lose its stale index entry.
+        if is_manual_channel and _below_minimum_video_size(message):
+            channel = str(message.chat.id).replace("-100", "")
+            async with db_lock:
+                removed = await db.remove_media_part(int(channel), message.id)
+            LOGGER.info(
+                f"Skipping edited undersized video {message.id} in manual channel {message.chat.id}: "
+                f"removed prior index reference: {bool(removed)}. Telegram original left untouched."
+            )
+        return
+    if _below_minimum_video_size(message):
+        channel = str(message.chat.id).replace("-100", "")
+        async with db_lock:
+            removed = await db.remove_media_part(int(channel), message.id)
+        LOGGER.info(
+            f"Skipping edited undersized video {message.id} in channel {message.chat.id}: "
+            f"{get_readable_file_size((message.video or message.document).file_size)} "
+            f"is below {SettingsManager.current().minimum_video_size_mb} MB. "
+            f"Removed prior index reference: {bool(removed)}. Telegram original left untouched."
+        )
         return
     try:
         if not _is_supported_media(message):

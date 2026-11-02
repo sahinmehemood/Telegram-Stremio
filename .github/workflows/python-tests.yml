@@ -1,0 +1,36 @@
+name: Python tests
+
+on:
+  push:
+    branches:
+      - master
+      - feature/mobile-first-video-filter
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile backend Python files
+        run: python -m compileall -q Backend
+      - name: Validate Jinja templates
+        run: |
+          python -m pip install Jinja2
+          python - <<'PY'
+          from pathlib import Path
+          from jinja2 import Environment
+
+          env = Environment()
+          template_dir = Path("Backend/fastapi/templates")
+          for path in sorted(template_dir.glob("*.html")):
+              env.parse(path.read_text(encoding="utf-8"))
+          print("All HTML templates parsed successfully.")
+          PY
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
