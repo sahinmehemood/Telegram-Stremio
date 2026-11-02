@@ -1682,6 +1682,14 @@ async function saveSettings() {
         return;
     }
 
+    const minimumSizeInput = document.getElementById('minimum_video_size_mb');
+    const minimumSize = Number(minimumSizeInput.value);
+    if (!Number.isInteger(minimumSize) || minimumSize < 0 || minimumSize > 102400) {
+        alert('Minimum video size must be a whole number between 0 and 102400 MB.');
+        minimumSizeInput.focus();
+        return;
+    }
+
     btn.disabled  = true;
     label.textContent = 'Saving…';
 
@@ -1689,7 +1697,7 @@ async function saveSettings() {
         replace_mode:                  document.getElementById('replace_mode').checked,
         duplicate_protection:          document.getElementById('duplicate_protection').checked,
         minimum_video_size_enabled:    document.getElementById('minimum_video_size_enabled').checked,
-        minimum_video_size_mb:         document.getElementById('minimum_video_size_mb').value,
+        minimum_video_size_mb:         minimumSize,
         hide_catalog:                  document.getElementById('hide_catalog').checked,
         admin_username:                document.getElementById('admin_username').value.trim(),
         admin_password:                document.getElementById('admin_password').value,  // blank = keep
