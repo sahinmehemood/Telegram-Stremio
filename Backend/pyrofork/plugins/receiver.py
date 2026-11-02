@@ -28,6 +28,26 @@ manual_session_lock = Lock()
 
 
 #----- True when the message carries a streamable video or a split-archive part
+def _is_video_message(message: Message) -> bool:
+    if message.video:
+        return True
+    if message.document:
+        return (message.document.mime_type or "").startswith("video/")
+    return False
+
+
+def _below_minimum_video_size(message: Message) -> bool:
+    settings = SettingsManager.current()
+    if not settings.minimum_video_size_enabled or not _is_video_message(message):
+        return False
+    file = message.video or message.document
+    size = getattr(file, "file_size", None)
+    if size is None:
+        return False
+    minimum_bytes = settings.minimum_video_size_mb * 1024 * 1024
+    return size < minimum_bytes
+
+
 def _is_supported_media(message: Message) -> bool:
     if message.video:
         return True
@@ -208,6 +228,14 @@ async def file_receive_handler(client: Client, message: Message):
     if is_skip_channel(message):
         return
 
+    if _below_minimum_video_size(message):
+        LOGGER.info(
+            f"Skipping undersized video {message.id} in channel {message.chat.id}: "
+            f"{get_readable_file_size((message.video or message.document).file_size)} "
+            f"is below {SettingsManager.current().minimum_video_size_mb} MB. Original Telegram message left untouched."
+        )
+        return
+
     session = Backend.MANUAL_SESSION
     is_manual = _is_manual_channel(message.chat.id)
 
@@ -275,6 +303,13 @@ def _override_matches_indexed(override_id: str, imdb_id, tmdb_id) -> bool:
 @Client.on_edited_message(filters.channel & (filters.document | filters.video))
 async def file_edited_handler(client: Client, message: Message):
     if str(message.chat.id) not in SettingsManager.current().auth_channels:
+        return
+    if _below_minimum_video_size(message):
+        LOGGER.info(
+            f"Skipping edited undersized video {message.id} in channel {message.chat.id}: "
+            f"{get_readable_file_size((message.video or message.document).file_size)} "
+            f"is below {SettingsManager.current().minimum_video_size_mb} MB. Existing index entry is left unchanged."
+        )
         return
     try:
         if not _is_supported_media(message):
