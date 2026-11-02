@@ -18,6 +18,8 @@ import Backend
 from Backend import StartTime, __version__, db
 from Backend.fastapi.routes.stream_routes import _streamer_by_client
 from Backend.fastapi.routes.stremio_routes import invalidate_membership_cache
+from Backend.helper.video_filter import normalize_minimum_video_size_enabled, normalize_minimum_video_size_mb
+
 from Backend.helper.analytics import get_activity_overview
 from Backend.helper.auto_catalog import (
     get_auto_catalog_settings,
@@ -1793,13 +1795,12 @@ async def update_settings_api(payload: dict) -> dict:
             payload[key] = bool(payload[key])
 
     if "minimum_video_size_enabled" in payload:
-        value = payload["minimum_video_size_enabled"]
-        if isinstance(value, bool):
-            pass
-        elif isinstance(value, str) and value.strip().lower() in {"true", "false"}:
-            payload["minimum_video_size_enabled"] = value.strip().lower() == "true"
-        else:
-            raise HTTPException(status_code=400, detail="minimum_video_size_enabled must be a boolean.")
+        try:
+            payload["minimum_video_size_enabled"] = normalize_minimum_video_size_enabled(
+                payload["minimum_video_size_enabled"]
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     list_str_keys = {"auth_channels", "multi_tokens", "extra_databases", "global_search_channels", "anime_channels", "manual_channels"}
     for key in list_str_keys:
@@ -1845,15 +1846,12 @@ async def update_settings_api(payload: dict) -> dict:
             payload["fanart_shuffle_interval"] = 5
 
     if "minimum_video_size_mb" in payload:
-        raw_size = payload["minimum_video_size_mb"]
         try:
-            if isinstance(raw_size, bool) or (isinstance(raw_size, float) and not raw_size.is_integer()):
-                raise ValueError
-            payload["minimum_video_size_mb"] = int(raw_size)
-        except (ValueError, TypeError, OverflowError):
-            raise HTTPException(status_code=400, detail="Minimum video size must be a whole number of MB.")
-        if not 0 <= payload["minimum_video_size_mb"] <= 102400:
-            raise HTTPException(status_code=400, detail="Minimum video size must be between 0 and 102400 MB.")
+            payload["minimum_video_size_mb"] = normalize_minimum_video_size_mb(
+                payload["minimum_video_size_mb"]
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     if len([k for k in ("better_poster_enabled", "rpdb_enabled", "spatial_poster_enabled", "fanart_enabled") if payload.get(k)]) > 1:
         raise HTTPException(status_code=400, detail="Enable only one poster provider at a time")
