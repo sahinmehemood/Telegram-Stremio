@@ -20,6 +20,7 @@ from Backend.helper.skip_channel import is_skip_channel, route_to_skip_channel
 from Backend.helper.split_files import parse_split_info
 from Backend.helper.subtitles import ingest_subtitle, is_subtitle_file, remove_subtitle
 from Backend.helper.task_manager import delete_message
+from Backend.helper.video_filter import is_below_minimum_video_size
 from Backend.logger import LOGGER
 
 file_queue = Queue()
@@ -44,8 +45,11 @@ def _below_minimum_video_size(message: Message) -> bool:
     size = getattr(file, "file_size", None)
     if size is None:
         return False
-    minimum_bytes = settings.minimum_video_size_mb * 1024 * 1024
-    return size < minimum_bytes
+    return is_below_minimum_video_size(
+        size,
+        settings.minimum_video_size_mb,
+        enabled=settings.minimum_video_size_enabled,
+    )
 
 
 def _is_supported_media(message: Message) -> bool:
