@@ -563,6 +563,78 @@
         </div>
     </div>
 
+    <!-- ── Streaming Buffer ────────────────────────────────────────────── -->
+    <div class="settings-card">
+        <h2><i class="fa-solid fa-layer-group"></i> Streaming Buffer</h2>
+        <p style="font-size:0.83rem;color:var(--text-sec);margin-bottom:1rem">
+            How much video is read ahead of the player. A deeper buffer absorbs Wi-Fi jitter and
+            Telegram slowdowns; the chunk cache makes seeks and resumes instant instead of
+            re-downloading. Every value is validated against this device's RAM, so a bad
+            setting can never exhaust memory.
+        </p>
+
+        <label class="toggle-wrap" style="margin-bottom:1rem">
+            <input type="checkbox" class="toggle-input" id="buffer_enabled"
+                {% if settings.get('buffer_enabled', True) %}checked{% endif %}
+                onchange="toggleBufferFields()">
+            <span class="toggle-track"></span>
+            <span class="toggle-label">
+                <strong>Enable Streaming Buffer</strong>
+                <span style="color:var(--text-sec);font-size:0.8rem;display:block">
+                    Off restores upstream behaviour: 1 MiB read-ahead, one worker, no chunk cache.
+                </span>
+            </span>
+        </label>
+
+        <div id="buffer-fields">
+            <label class="s-label" for="buffer_profile">Profile</label>
+            <select id="buffer_profile" class="s-input" onchange="applyBufferProfile()">
+                {% set bprof = settings.get('buffer_profile', 'balanced') %}
+                <option value="conservative" {% if bprof == 'conservative' %}selected{% endif %}>Conservative — 6 MiB, 2 workers, 24 MiB cache</option>
+                <option value="balanced" {% if bprof == 'balanced' %}selected{% endif %}>Balanced — 12 MiB, 3 workers, 48 MiB cache (recommended)</option>
+                <option value="aggressive" {% if bprof == 'aggressive' %}selected{% endif %}>Aggressive — 24 MiB, 5 workers, 96 MiB cache</option>
+                <option value="custom" {% if bprof == 'custom' %}selected{% endif %}>Custom — set the numbers yourself</option>
+            </select>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(10.5rem,1fr));gap:0.9rem;margin-top:1rem">
+                <div>
+                    <label class="s-label" for="buffer_readahead_mb">Read-ahead (MiB)</label>
+                    <input type="number" id="buffer_readahead_mb" class="s-input" min="2" max="128" step="1"
+                        value="{{ settings.get('buffer_readahead_mb', 12) }}" oninput="updateBufferEstimate()">
+                </div>
+                <div>
+                    <label class="s-label" for="buffer_workers">Parallel workers</label>
+                    <input type="number" id="buffer_workers" class="s-input" min="1" max="8" step="1"
+                        value="{{ settings.get('buffer_workers', 3) }}" oninput="updateBufferEstimate()">
+                </div>
+                <div>
+                    <label class="s-label" for="buffer_cache_mb">Chunk cache (MiB)</label>
+                    <input type="number" id="buffer_cache_mb" class="s-input" min="0" max="512" step="8"
+                        value="{{ settings.get('buffer_cache_mb', 48) }}" oninput="updateBufferEstimate()">
+                </div>
+                <div>
+                    <label class="s-label" for="buffer_stall_timeout">Stall timeout (s)</label>
+                    <input type="number" id="buffer_stall_timeout" class="s-input" min="15" max="600" step="5"
+                        value="{{ settings.get('buffer_stall_timeout', 90) }}" oninput="updateBufferEstimate()">
+                </div>
+            </div>
+
+            <label class="toggle-wrap" style="margin-top:1rem">
+                <input type="checkbox" class="toggle-input" id="buffer_adaptive"
+                    {% if settings.get('buffer_adaptive', True) %}checked{% endif %}>
+                <span class="toggle-track"></span>
+                <span class="toggle-label">
+                    <strong>Adaptive read-ahead</strong>
+                    <span style="color:var(--text-sec);font-size:0.8rem;display:block">
+                        Deepens the buffer automatically when measured throughput is low, relaxes it on a fast link.
+                    </span>
+                </span>
+            </label>
+
+            <p id="buffer-estimate" style="font-size:0.75rem;color:var(--text-sec);margin-top:0.9rem"></p>
+        </div>
+    </div>
+
     <!-- ── Manual Add Channels ─────────────────────────────────────────── -->
     <div class="settings-card">
         <h2><i class="fa-solid fa-hand-pointer"></i> Manual Add Channels</h2>
@@ -1378,6 +1450,48 @@ function toggleMfPwdVisibility() {
     }
 }
 
+function toggleBufferFields() {
+    const enabled = document.getElementById('buffer_enabled').checked;
+    const fields = document.getElementById('buffer-fields');
+    if (fields) fields.style.display = enabled ? '' : 'none';
+    updateBufferEstimate();
+}
+
+const BUFFER_PROFILES = {
+    conservative: { readahead_mb: 6, workers: 2, cache_mb: 24 },
+    balanced:     { readahead_mb: 12, workers: 3, cache_mb: 48 },
+    aggressive:   { readahead_mb: 24, workers: 5, cache_mb: 96 },
+};
+
+function applyBufferProfile() {
+    const profile = document.getElementById('buffer_profile').value;
+    const preset = BUFFER_PROFILES[profile];
+    if (preset) {
+        document.getElementById('buffer_readahead_mb').value = preset.readahead_mb;
+        document.getElementById('buffer_workers').value = preset.workers;
+        document.getElementById('buffer_cache_mb').value = preset.cache_mb;
+    }
+    updateBufferEstimate();
+}
+
+function updateBufferEstimate() {
+    const out = document.getElementById('buffer-estimate');
+    if (!out) return;
+    const readahead = parseInt(document.getElementById('buffer_readahead_mb').value, 10) || 0;
+    const workers = parseInt(document.getElementById('buffer_workers').value, 10) || 1;
+    const cache = parseInt(document.getElementById('buffer_cache_mb').value, 10) || 0;
+    const enabled = document.getElementById('buffer_enabled').checked;
+    if (!enabled) {
+        out.textContent = 'Buffer disabled — streams fall back to 1 MiB read-ahead and no cache.';
+        return;
+    }
+    //----- Queue depth + in-flight chunks + cache is the realistic worst case
+    const worstCase = readahead + workers + cache;
+    const seconds = (readahead * 8) / 10;   // read-ahead at a 10 Mbps bitrate
+    out.textContent = `Worst case: ~${worstCase} MiB RAM · ~${seconds.toFixed(1)} s of video ahead at 10 Mbps ` +
+                      `· ${cache} MiB cache shared by all streams.`;
+}
+
 function toggleSkipDeleteField() {
     const el = document.getElementById('skip_channel');
     const hasChannel = !!(el && (el.dataset.id || extractChannelId(el.value.trim())));
@@ -1717,6 +1831,17 @@ async function saveSettings() {
     const dsEl = document.getElementById('default_streaming');
     if (dsEl) payload.default_streaming = dsEl.checked ? 'userbot' : 'bots';
 
+    //----- Streaming buffer
+    if (document.getElementById('buffer_enabled')) {
+        payload.buffer_enabled      = document.getElementById('buffer_enabled').checked;
+        payload.buffer_adaptive     = document.getElementById('buffer_adaptive').checked;
+        payload.buffer_profile      = document.getElementById('buffer_profile').value;
+        payload.buffer_readahead_mb = parseInt(document.getElementById('buffer_readahead_mb').value, 10) || 12;
+        payload.buffer_workers      = parseInt(document.getElementById('buffer_workers').value, 10) || 3;
+        payload.buffer_cache_mb     = parseInt(document.getElementById('buffer_cache_mb').value, 10) || 0;
+        payload.buffer_stall_timeout = parseInt(document.getElementById('buffer_stall_timeout').value, 10) || 90;
+    }
+
     try {
         const res  = await fetch('/api/admin/settings', {
             method: 'PUT',
@@ -1821,6 +1946,16 @@ function renderSettings(s) {
     document.getElementById('global_search').checked = !!s.global_search;
     const dsEl = document.getElementById('default_streaming');
     if (dsEl) dsEl.checked = s.default_streaming === 'userbot';
+    if (document.getElementById('buffer_enabled')) {
+        document.getElementById('buffer_enabled').checked = s.buffer_enabled !== false;
+        document.getElementById('buffer_adaptive').checked = s.buffer_adaptive !== false;
+        document.getElementById('buffer_profile').value = s.buffer_profile || 'balanced';
+        document.getElementById('buffer_readahead_mb').value = s.buffer_readahead_mb ?? 12;
+        document.getElementById('buffer_workers').value = s.buffer_workers ?? 3;
+        document.getElementById('buffer_cache_mb').value = s.buffer_cache_mb ?? 48;
+        document.getElementById('buffer_stall_timeout').value = s.buffer_stall_timeout ?? 90;
+        toggleBufferFields();
+    }
     document.getElementById('announce_new_content').checked = !!s.announce_new_content;
     document.getElementById('delete_on_metadata_fail').checked = !!s.delete_on_metadata_fail;
     toggleSubFields();
@@ -2070,6 +2205,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     toggleDuplicateProtection();
     toggleMediaflowFields();
+    toggleBufferFields();
     loadDbStats();
     loadLogs();
 });

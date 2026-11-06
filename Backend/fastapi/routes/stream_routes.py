@@ -20,6 +20,7 @@ from Backend.helper.custom_dl import ACTIVE_STREAMS, RECENT_STREAMS, ByteStreame
 from Backend.helper.encrypt import decode_string
 from Backend.helper.pyro import get_thumb_download_target
 from Backend.helper.settings_manager import SettingsManager
+from Backend.helper.stream_buffer import stream_policy
 from Backend.helper.utils import track_usage
 from Backend.helper.virtual_dl import resolve_virtual_parts, virtual_stream_generator
 from Backend.helper.zip_stream import resolve_zip_entry
@@ -129,7 +130,13 @@ def _get_streamer(tg_client, index: int) -> ByteStreamer:
     return _streamer_by_client[tg_client]
 
 
+#----- Buffer depth and worker count for a stream.
+#----- Uses the streaming-buffer policy when enabled; otherwise keeps the
+#----- legacy client-scaled heuristic (1 MiB per queue slot).
 def _prefetch_for(index: int) -> tuple[int, int]:
+    policy = stream_policy(userbot=index == USERBOT_CLIENT_INDEX)
+    if policy.enabled:
+        return policy.workers, policy.depth_chunks(ByteStreamer.CHUNK_SIZE)
     return (1, 1) if index == USERBOT_CLIENT_INDEX else get_parallel_prefetch(len(multi_clients) - 1)
 
 
