@@ -20,6 +20,7 @@ from Backend.helper.custom_dl import ACTIVE_STREAMS, RECENT_STREAMS, ByteStreame
 from Backend.helper.encrypt import decode_string
 from Backend.helper.pyro import get_thumb_download_target
 from Backend.helper.settings_manager import SettingsManager
+from Backend.helper.stream_buffer import snapshot as buffer_snapshot
 from Backend.helper.stream_buffer import stream_policy
 from Backend.helper.utils import track_usage
 from Backend.helper.virtual_dl import resolve_virtual_parts, virtual_stream_generator
@@ -699,6 +700,7 @@ async def get_stream_stats():
             "avg_mbps": round(info.get("avg_mbps", 0.0), 3),
             "peak_mbps": round(info.get("peak_mbps", 0.0), 3),
             "start_ts": info.get("start_ts"),
+            "buffer": info.get("buffer", {}),
         }
         for sid, info in ACTIVE_STREAMS.items()
     ]
@@ -717,6 +719,7 @@ async def get_stream_stats():
             "avg_mbps": round(info.get("avg_mbps", 0.0), 3),
             "start_ts": info.get("start_ts"),
             "end_ts": info.get("end_ts"),
+            "buffer": info.get("buffer", {}),
         }
         for info in RECENT_STREAMS
     ]
@@ -725,6 +728,7 @@ async def get_stream_stats():
         "recent_streams": recent,
         "client_dc_map": client_dc_map,
         "work_loads": work_loads,
+        "buffer": buffer_snapshot(),
     })
 
 
