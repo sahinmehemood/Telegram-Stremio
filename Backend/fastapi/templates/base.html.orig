@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en" class="{{ 'dark' if theme.is_dark else 'light' }} style-{{ theme.style|default('default') }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Telegram Stremio{% endblock %}</title>
+
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='{{ theme.colors.primary | replace('#','%23') }}'/%3E%3Cpath d='M12.5 9.5l10 6.5-10 6.5z' fill='white'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="/pwa-icon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="{{ theme.colors.primary }}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="{{ 'black-translucent' if theme.is_dark else 'default' }}">
+<meta name="mobile-web-app-capable" content="yes">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+    color-scheme: {{ 'dark' if theme.is_dark else 'light' }};
+    --primary: {{ theme.colors.primary }};
+    --secondary: {{ theme.colors.secondary }};
+    --accent: {{ theme.colors.accent }};
+    --bg: {{ theme.colors.background }};
+    --card: {{ theme.colors.card }};
+    --border: {{ theme.colors.border }};
+    --text: {{ theme.colors.text }};
+    --text-sec: {{ theme.colors.text_secondary }};
+
+    --surface: color-mix(in srgb, var(--text) 5%, transparent);
+    --surface-2: color-mix(in srgb, var(--text) 9%, transparent);
+    --surface-3: color-mix(in srgb, var(--text) 14%, transparent);
+    --hairline: color-mix(in srgb, var(--text) 12%, transparent);
+    --hairline-strong: color-mix(in srgb, var(--text) 20%, transparent);
+    --muted: color-mix(in srgb, var(--text) 42%, transparent);
+    --ring: color-mix(in srgb, var(--primary) 35%, transparent);
+    --shadow-color: {{ '0,0,0' if theme.is_dark else '15,23,42' }};
+    --shadow-soft: 0 10px 30px rgba(var(--shadow-color), {{ '0.35' if theme.is_dark else '0.10' }});
+    --shadow-strong: 0 24px 60px rgba(var(--shadow-color), {{ '0.45' if theme.is_dark else '0.16' }});
+}
+
+html { scroll-behavior: smooth; }
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+    }
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background-color: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+        radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 40%),
+        radial-gradient(circle at 85% 80%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 40%),
+        radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--card) 40%, transparent), transparent 60%);
+}
+
+
+.glass-panel {
+    background: color-mix(in srgb, var(--card) 90%, var(--bg));
+    border: 1px solid var(--hairline);
+    box-shadow: var(--shadow-soft);
+    border-radius: 1.5rem;
+}
+
+.glass-nav {
+    background: color-mix(in srgb, var(--card) 78%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-pill { border-radius: 9999px; }
+
+.surface-card {
+    background: color-mix(in srgb, var(--card) 92%, var(--bg));
+    border: 1px solid var(--hairline);
+    border-radius: 1.5rem;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: var(--bg);
+    font-weight: 700;
+    border-radius: 1rem;
+    transition: filter .2s ease, transform .12s ease, box-shadow .2s ease;
+    box-shadow: 0 8px 22px color-mix(in srgb, var(--primary) 30%, transparent);
+}
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-primary:active { transform: scale(.97); }
+
+.btn-ghost {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--hairline);
+    border-radius: 1rem;
+    font-weight: 700;
+    transition: background .2s ease, border-color .2s ease;
+}
+.btn-ghost:hover { background: var(--surface-2); border-color: var(--hairline-strong); }
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    padding: .25rem .6rem;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary);
+}
+
+.field {
+    width: 100%;
+    background: color-mix(in srgb, var(--card) 88%, var(--bg));
+    color: var(--text);
+    border: 1px solid var(--hairline);
+    border-radius: 1rem;
+    transition: border-color .2s ease, box-shadow .2s ease;
+}
+.field:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--ring);
+}
+
+html.style-glassy .glass-panel,
+html.style-glassy .surface-card {
+    background: color-mix(in srgb, var(--card) 28%, transparent);
+    backdrop-filter: blur(48px) saturate(220%);
+    -webkit-backdrop-filter: blur(48px) saturate(220%);
+    border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+    box-shadow: 0 12px 40px rgba(0,0,0,.32), inset 0 1px 0 color-mix(in srgb, var(--text) 18%, transparent);
+    border-radius: 1.5rem;
+}
+html.style-glassy body::before {
+    opacity: 1;
+    filter: blur(0px);
+}
+html.style-glassy .glass-nav {
+    background: color-mix(in srgb, var(--card) 30%, transparent);
+    backdrop-filter: blur(56px) saturate(240%);
+    -webkit-backdrop-filter: blur(56px) saturate(240%);
+    border-bottom: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+}
+html.style-glassy .btn-primary {
+    border-radius: 9999px;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--primary) 85%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 8px 28px color-mix(in srgb, var(--primary) 45%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+}
+html.style-glassy .btn-ghost {
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--card) 28%, transparent);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+}
+html.style-glassy .field {
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--card) 25%, transparent);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+}
+html.style-glassy .badge {
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--primary) 22%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+html.style-neo_brutal .glass-panel,
+html.style-neo_brutal .surface-card {
+    background: var(--card);
+    border: 3px solid var(--text);
+    box-shadow: 6px 6px 0 var(--text);
+    border-radius: 0.75rem;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+html.style-neo_brutal .glass-nav {
+    background: var(--card);
+    border-bottom: 3px solid var(--text);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+html.style-neo_brutal .btn-primary {
+    background: var(--primary);
+    color: var(--bg);
+    font-weight: 900;
+    border: 3px solid var(--text);
+    border-radius: 0.5rem;
+    box-shadow: 4px 4px 0 var(--text);
+}
+html.style-neo_brutal .btn-primary:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 var(--text);
+    filter: none;
+}
+html.style-neo_brutal .btn-primary:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 var(--text);
+}
+html.style-neo_brutal .btn-ghost {
+    background: var(--card);
+    color: var(--text);
+    font-weight: 900;
+    border: 3px solid var(--text);
+    border-radius: 0.5rem;
+    box-shadow: 4px 4px 0 var(--text);
+}
+html.style-neo_brutal .btn-ghost:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 var(--text);
+}
+html.style-neo_brutal .badge {
+    border: 2px solid var(--text);
+    border-radius: 0.35rem;
+    font-weight: 900;
+    box-shadow: 2px 2px 0 var(--text);
+    background: var(--accent);
+    color: var(--text);
+}
+html.style-neo_brutal .field {
+    background: var(--card);
+    border: 3px solid var(--text);
+    border-radius: 0.5rem;
+    box-shadow: 3px 3px 0 var(--text);
+}
+html.style-neo_brutal .field:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 3px 3px 0 var(--primary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Omarchy — flat surfaces, one accent, monospace everywhere, zero decoration.
+   Scoped to html.style-omarchy so the other themes keep their look.
+   ───────────────────────────────────────────────────────────────────────── */
+html.style-omarchy {
+    --om-bar: 26px;
+}
+
+html.style-omarchy body {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    padding-top: calc(var(--om-bar) + 4.75rem) !important;
+    background-image:
+        linear-gradient(color-mix(in srgb, var(--text) 2.4%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in srgb, var(--text) 2.4%, transparent) 1px, transparent 1px);
+    background-size: 64px 64px;
+}
+html.style-omarchy body::before { display: none !important; }
+
+/*----- No rounded corners, no shadows, no glows anywhere */
+html.style-omarchy *,
+html.style-omarchy *::before,
+html.style-omarchy *::after {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+
+/*----- Kill gradient text and gradient fills (Tailwind utilities) */
+html.style-omarchy .bg-clip-text {
+    -webkit-text-fill-color: currentColor !important;
+    color: var(--primary) !important;
+    background-image: none !important;
+}
+html.style-omarchy [class*="bg-gradient"] { background-image: none !important; }
+
+/*----- Panels: one hairline, flat fill */
+html.style-omarchy .glass-panel,
+html.style-omarchy .surface-card,
+html.style-omarchy .settings-card {
+    background: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/*----- Nav becomes a full-width bar under the status strip */
+html.style-omarchy #navbar {
+    top: var(--om-bar);
+    left: 0;
+    transform: none;
+    width: 100%;
+    max-width: none;
+    padding: .45rem .9rem;
+    background: color-mix(in srgb, var(--bg) 94%, transparent) !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--border) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+html.style-omarchy #nav-container {
+    background: transparent !important;
+    border: 1px solid var(--border) !important;
+    padding: 2px;
+    gap: 0;
+}
+html.style-omarchy .nav-link {
+    font-size: .68rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    padding: .38rem .62rem;
+}
+html.style-omarchy .nav-link:hover { background: var(--surface); color: var(--text); }
+html.style-omarchy .nav-link.pill-active { color: var(--bg) !important; }
+html.style-omarchy #active-pill { background: var(--primary); box-shadow: none !important; }
+
+/*----- Headings read like a shell prompt */
+html.style-omarchy h1 {
+    color: var(--primary);
+    font-weight: 700;
+    letter-spacing: -.01em;
+}
+html.style-omarchy h1::before {
+    content: "$ ";
+    color: var(--text-secondary);
+    opacity: .8;
+}
+html.style-omarchy h2, html.style-omarchy h3 { letter-spacing: 0; }
+
+/*----- Controls */
+html.style-omarchy .field,
+html.style-omarchy .s-input,
+html.style-omarchy input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+html.style-omarchy select,
+html.style-omarchy textarea {
+    background: #0B0A0A !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text) !important;
+    font-family: inherit !important;
+    font-size: .8rem !important;
+}
+html.style-omarchy .field:focus,
+html.style-omarchy .s-input:focus,
+html.style-omarchy input:focus,
+html.style-omarchy select:focus,
+html.style-omarchy textarea:focus {
+    outline: 1px solid var(--primary) !important;
+    outline-offset: 0;
+    border-color: var(--primary) !important;
+}
+
+html.style-omarchy .btn-primary,
+html.style-omarchy .btn-ghost {
+    font-size: .7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    border: 1px solid var(--border) !important;
+    padding: .5rem .85rem;
+}
+html.style-omarchy .btn-primary {
+    background: var(--primary) !important;
+    color: #100F0F !important;
+    border-color: var(--primary) !important;
+}
+html.style-omarchy .btn-primary:hover { background: var(--accent) !important; border-color: var(--accent) !important; }
+html.style-omarchy .btn-ghost { background: transparent !important; color: var(--text) !important; }
+html.style-omarchy .btn-ghost:hover { background: var(--surface) !important; border-color: var(--primary) !important; }
+
+html.style-omarchy .badge {
+    background: transparent !important;
+    border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+    color: var(--primary);
+    font-size: .58rem;
+    letter-spacing: .1em;
+    padding: .14rem .45rem;
+}
+
+/*----- Tables: man-page density */
+html.style-omarchy table { font-size: .76rem; }
+html.style-omarchy thead th {
+    font-size: .6rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border) !important;
+}
+html.style-omarchy tbody tr { border-bottom: 1px solid color-mix(in srgb, var(--text) 7%, transparent); }
+html.style-omarchy tbody tr:hover { background: var(--surface); }
+
+/*----- Status strip (rendered only for this style) */
+.om-statusbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: var(--om-bar);
+    z-index: 55;
+    display: flex;
+    align-items: center;
+    gap: .9rem;
+    padding: 0 .9rem;
+    font-size: .63rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    overflow: hidden;
+}
+.om-sb-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    margin-right: .35rem;
+    background: #879A39;
+    box-shadow: 0 0 6px #879A39;
+    vertical-align: middle;
+}
+.om-sb-strong { color: var(--text); }
+.om-sb-accent { color: var(--primary); }
+.om-sb-spacer { flex: 1 1 auto; }
+@media (max-width: 640px) {
+    .om-statusbar { gap: .55rem; font-size: .56rem; }
+    .om-sb-hide { display: none; }
+}
+
+.tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+::selection { background: color-mix(in srgb, var(--primary) 30%, transparent); color: var(--text); }
+
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+* { scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--hairline-strong); border-radius: 9999px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+    
+.nav-link {
+    color: var(--text-sec);
+    border-radius: 9999px;
+    padding: 0.5rem clamp(0.55rem, 0.9vw, 1.25rem);
+    transition: color 0.3s ease;
+    position: relative;
+    z-index: 1;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.nav-link.pill-active {
+    color: var(--bg) !important; 
+}
+
+#active-pill {
+    position: absolute;
+    inset: auto;
+    background: var(--primary);
+    border-radius: 9999px;
+    pointer-events: none;
+    z-index: 0;
+    box-shadow: 0 0 15px color-mix(in srgb, var(--primary) 40%, transparent);
+    transition:
+        left 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+        top 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+        width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+        height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast {
+    pointer-events: auto;
+    min-width: 260px;
+    max-width: 360px;
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--card) 88%, transparent);
+    color: var(--text);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.2);
+    border-radius: 1rem;
+    padding: 0.9rem 1rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    backdrop-filter: blur(14px);
+    animation: toast-in 220ms ease-out;
+}
+
+.toast.success { border-color: color-mix(in srgb, #22c55e 35%, var(--border)); }
+.toast.error   { border-color: color-mix(in srgb, #ef4444 35%, var(--border)); }
+.toast.info    { border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); }
+
+.toast-title   { font-weight: 800; font-size: 0.9rem; line-height: 1.2; }
+.toast-message { margin-top: 0.15rem; font-size: 0.82rem; color: var(--text-sec); line-height: 1.35; }
+
+@keyframes toast-in  { from { opacity: 0; transform: translateY(-10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes toast-out { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(-8px) scale(0.98); } }
+
+.theme-select {
+    appearance: none;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.5rem 2rem 0.5rem 1rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+input, select, textarea, button {
+    font-family: inherit;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+select,
+textarea {
+    color: var(--text);
+}
+input::placeholder,
+textarea::placeholder {
+    color: color-mix(in srgb, var(--text-sec) 78%, transparent);
+    opacity: 1;
+}
+select option,
+select optgroup {
+    background-color: var(--card);
+    color: var(--text);
+}
+/* Autofill no longer paints white-on-white in dark themes */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill {
+    -webkit-text-fill-color: var(--text);
+    -webkit-box-shadow: 0 0 0 1000px color-mix(in srgb, var(--card) 92%, transparent) inset;
+    caret-color: var(--text);
+    transition: background-color 9999s ease-in-out 0s;
+}
+
+/* ── Modern theme picker (nav) ──────────────────────────────────────────────*/
+.theme-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+.theme-chip {
+    --sw-bg: var(--bg);
+    --sw-primary: var(--primary);
+    --sw-accent: var(--accent);
+    --sw-text: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: 0.85rem;
+    border: 1px solid color-mix(in srgb, var(--sw-text) 18%, transparent);
+    background: var(--sw-bg);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+}
+.theme-chip:hover {
+    transform: translateY(-1px);
+    border-color: var(--sw-primary);
+}
+.theme-chip.active {
+    border-color: var(--sw-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--sw-primary) 55%, transparent);
+}
+.theme-chip-dots { display: flex; gap: 3px; flex-shrink: 0; }
+.theme-chip-dots .dot {
+    width: 0.7rem; height: 0.7rem; border-radius: 9999px;
+    box-shadow: 0 0 6px color-mix(in srgb, var(--sw-primary) 70%, transparent);
+}
+.theme-chip-name {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--sw-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.1;
+}
+.theme-chip .chip-check {
+    position: absolute;
+    top: 0.3rem; right: 0.4rem;
+    font-size: 0.6rem;
+    color: var(--sw-primary);
+}
+
+#overlay {
+    backdrop-filter: blur(8px);
+    background: rgba(0,0,0,0.4);
+    transition: opacity 0.3s ease;
+}
+
+.nav-scrolled { 
+    transform: translate(-50%, -5px) scale(0.97); 
+    background: color-mix(in srgb, var(--card) 80%, transparent);
+}
+
+#mobile-menu { will-change: max-height, opacity; }
+
+</style>
+
+<script>
+tailwind.config = {
+    darkMode: 'class',
+    theme: {
+        extend: {
+            fontFamily: {
+                sans: ['Inter', 'system-ui', 'sans-serif'],
+                mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace']
+            },
+            colors: {
+                primary: 'var(--primary)',
+                secondary: 'var(--secondary)',
+                accent: 'var(--accent)',
+                background: 'var(--bg)',
+                card: 'var(--card)',
+                border: 'var(--border)',
+                text: 'var(--text)',
+                'text-secondary': 'var(--text-sec)',
+                surface: 'var(--surface)',
+                'surface-2': 'var(--surface-2)',
+                'surface-3': 'var(--surface-3)',
+                hairline: 'var(--hairline)',
+                'hairline-strong': 'var(--hairline-strong)',
+                muted: 'var(--muted)'
+            },
+            boxShadow: {
+                soft: 'var(--shadow-soft)',
+                strong: 'var(--shadow-strong)'
+            }
+        }
+    }
+}
+</script>
+<script>
+/* Clipboard API needs HTTPS; fall back to execCommand on plain-HTTP LAN access */
+if (!navigator.clipboard) Object.defineProperty(navigator, 'clipboard', { value: { writeText: t => new Promise((ok, fail) => {
+    const a = document.createElement('textarea');
+    a.value = t; a.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(a); a.select();
+    const done = document.execCommand('copy'); a.remove();
+    done ? ok() : fail(new Error('Copy failed'));
+}) } });
+</script>
+</head>
+
+<body class="pt-24 pb-12 antialiased">
+
+<div id="update-banner" class="hidden fixed top-0 left-0 right-0 z-[60] px-3 pt-3 pointer-events-none">
+  <div class="pointer-events-auto mx-auto max-w-6xl rounded-2xl border border-amber-400/40 bg-amber-500/95 text-black shadow-[0_12px_40px_rgba(0,0,0,0.35)] backdrop-blur-md px-4 py-3 sm:px-5 flex items-start sm:items-center gap-3">
+    <div class="shrink-0 w-9 h-9 rounded-xl bg-black/15 flex items-center justify-center mt-0.5 sm:mt-0">
+      <i class="fa-solid fa-arrow-up text-sm"></i>
+    </div>
+    <div class="min-w-0 flex-1 leading-snug">
+      <p class="text-sm font-bold">New version <span id="update-latest" class="font-extrabold"></span> available</p>
+      <p class="text-xs sm:text-sm opacity-90 mt-0.5">You are on <span id="update-current" class="font-semibold"></span>. Set upstream repo/branch, then restart/update.</p>
+    </div>
+  </div>
+</div>
+
+<div id="overlay" class="fixed inset-0 z-40 opacity-0 pointer-events-none"></div>
+
+{% if theme.style == 'omarchy' %}
+<div class="om-statusbar">
+    <span><span class="om-sb-dot"></span><span class="om-sb-strong">online</span></span>
+    <span class="om-sb-hide">telegram-stremio</span>
+    <span class="om-sb-accent">{{ current_user or 'guest' }}@stremio</span>
+    <span class="om-sb-spacer"></span>
+    <span class="om-sb-hide" id="om-host"></span>
+    <span id="om-clock">--:--:--</span>
+</div>
+<script>
+(function () {
+    var host = document.getElementById('om-host');
+    if (host) host.textContent = location.host;
+    var clock = document.getElementById('om-clock');
+    if (!clock) return;
+    function tick() {
+        var d = new Date();
+        clock.textContent = [d.getHours(), d.getMinutes(), d.getSeconds()]
+            .map(function (n) { return String(n).padStart(2, '0'); })
+            .join(':');
+    }
+    tick();
+    setInterval(tick, 1000);
+})();
+</script>
+{% endif %}
+
+<nav id="navbar"
+  class="fixed top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-6xl z-50
+  glass-panel glass-nav glass-pill px-5 py-3
+  grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4
+  transition-all duration-300">
+    <a href="/" class="flex items-center gap-3 shrink-0">
+        <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-[0_0_15px_var(--primary)]">
+            <i class="fa-solid fa-play text-white text-xs"></i>
+        </div>
+        <span class="text-lg md:text-xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
+            TG Stremio
+        </span>
+    </a>
+
+    {% if current_user %}
+    <div id="nav-container" class="hidden md:flex relative isolate min-w-0 justify-self-center items-center gap-1 p-1 bg-black/10 rounded-full border border-hairline">
+        <div id="active-pill" class="pointer-events-none"></div>
+        <a href="/" class="nav-link">Home</a>
+        <a href="/media/manage" class="nav-link">Media</a>
+        <a href="/catalogs" class="nav-link">Catalogs</a>
+        <a href="/admin/dashboard" class="nav-link">Admin</a>
+        <a href="/admin/subscriptions" class="nav-link">Plans</a>
+        <a href="/admin/access" class="nav-link">Tokens</a>
+        <a href="/admin/requests" class="nav-link">Requests</a>
+        <a href="/admin/tools" class="nav-link">Tools</a>
+        <a href="/admin/settings" class="nav-link">Settings</a>
+    </div>
+    {% endif %}
+
+    <div class="flex items-center gap-3 justify-self-end">
+        {% if current_user %}
+            <button id="menu-btn" class="md:hidden w-10 h-10 flex items-center justify-center text-xl hover:bg-surface-2 rounded-full transition">
+                <i id="menu-icon" class="fa-solid fa-bars"></i>
+            </button>
+
+            <div class="relative">
+                <button id="user-btn" class="w-10 h-10 rounded-full bg-primary/20 hover:bg-primary/30 flex items-center justify-center text-primary text-lg transition border border-primary/30">
+                    <i class="fa-solid fa-user"></i>
+                </button>
+
+                <div id="user-dropdown" class="absolute right-0 top-14 w-72 glass-panel rounded-2xl p-4 opacity-0 scale-95 pointer-events-none transition-all duration-200 origin-top-right z-50">
+                    <div class="mb-3 border-b border-hairline pb-3">
+                        <p class="text-sm font-bold text-text">{{ current_user }}</p>
+                        <p class="text-[10px] text-green-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Online
+                        </p>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="text-[10px] uppercase text-text-secondary font-bold mb-2 block ml-1">Color</label>
+                        <div class="theme-grid">
+                            {% for theme_key, theme_data in themes.items() %}
+                            <button type="button"
+                                onclick="selectTheme('{{ theme_key }}')"
+                                class="theme-chip {% if current_theme==theme_key %}active{% endif %}"
+                                title="{{ theme_data.name }}"
+                                style="--sw-bg:{{ theme_data.colors.background }};--sw-primary:{{ theme_data.colors.primary }};--sw-accent:{{ theme_data.colors.accent }};--sw-text:{{ theme_data.colors.text }}">
+                                <span class="theme-chip-dots">
+                                    <span class="dot" style="background:{{ theme_data.colors.primary }}"></span>
+                                    <span class="dot" style="background:{{ theme_data.colors.accent }}"></span>
+                                </span>
+                                <span class="theme-chip-name">{{ theme_data.name }}</span>
+                                {% if current_theme==theme_key %}<i class="fa-solid fa-check chip-check"></i>{% endif %}
+                            </button>
+                            {% endfor %}
+                        </div>
+                        <label class="text-[10px] uppercase text-text-secondary font-bold mb-2 mt-3 block ml-1">Theme</label>
+                        <div class="theme-grid">
+                            {% for style_key, style_data in styles.items() %}
+                            <button type="button"
+                                onclick="selectStyle('{{ style_key }}')"
+                                class="theme-chip {% if current_style==style_key %}active{% endif %}"
+                                title="{{ style_data.name }}">
+                                <span class="theme-chip-name">{{ style_data.name }}</span>
+                                {% if current_style==style_key %}<i class="fa-solid fa-check chip-check"></i>{% endif %}
+                            </button>
+                            {% endfor %}
+                        </div>
+                        <form id="theme-form" method="post" action="/set-theme" class="hidden">
+                            <input type="hidden" name="theme" id="theme-input">
+                            <input type="hidden" name="style" id="style-input">
+                        </form>
+                    </div>
+
+                    <a href="/admin/settings"
+                       class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold mb-2 transition-all"
+                       style="background:color-mix(in srgb,var(--primary) 12%,transparent);color:var(--primary)">
+                        <i class="fa-solid fa-gear"></i> Settings
+                    </a>
+
+                    <a href="/logout" class="block text-center bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all">
+                        Logout
+                    </a>
+                </div>
+            </div>
+        {% else %}
+            <a href="/login" class="bg-primary hover:bg-primary/80 text-white px-6 py-2 rounded-full text-sm font-bold transition shadow-lg shadow-primary/20">
+                Login
+            </a>
+        {% endif %}
+    </div>
+
+    <div id="mobile-menu" class="absolute top-[calc(100%+12px)] left-0 w-full overflow-hidden max-h-0 opacity-0 transition-all duration-300 ease-in-out md:hidden z-40">
+        <div class="glass-panel mx-2 rounded-3xl p-4 flex flex-col gap-2">
+            <a href="/" class="px-4 py-3 rounded-xl hover:bg-primary hover:text-background transition flex items-center gap-3 font-semibold"><i class="fa-solid fa-house"></i> Home</a>
+            <a href="/media/manage" class="px-4 py-3 rounded-xl hover:bg-primary hover:text-background transition flex items-center gap-3 font-semibold"><i class="fa-solid fa-clapperboard"></i> Media</a>
+            <a href="/catalogs" class="px-4 py-3 rounded-xl hover:bg-primary hover:text-background transition flex items-center gap-3 font-semibold"><i class="fa-solid fa-layer-group"></i> Catalogs</a>
+            <a href="/admin/dashboard" class="px-4 py-3 rounded-xl hover:bg-primary hover:text-background transition flex items-center gap-3 font-semibold"><i class="fa-solid fa-chart-line"></i> Admin</a>
+            <a href="/admin/subscriptions" class="px-4 py-3 rounded-xl hover:bg-primary hover:text-background transition flex items-center gap-3 font-semibold"><i class="fa-solid fa-credit-card"></i> Plans</a>
+            <a href="/admin/access" class="px-4 py-3 rounded-xl hover:bg-primary hover:text-background transition flex items-center gap-3 font-semibold"><i class="fa-solid fa-shield"></i> Tokens</a>
+            <a href="/admin/requests" class="px-4 py-3 rounded-xl hover:bg-primary hover:text-background transition flex items-center gap-3 font-semibold"><i class="fa-solid fa-inbox"></i> Requests</a>
+            <a href="/admin/tools" class="px-4 py-3 rounded-xl hover:bg-primary hover:text-background transition flex items-center gap-3 font-semibold"><i class="fa-solid fa-screwdriver-wrench"></i> Tools</a>
+            <a href="/admin/settings" class="px-4 py-3 rounded-xl hover:bg-primary hover:text-background transition flex items-center gap-3 font-semibold"><i class="fa-solid fa-gear"></i> Settings</a>
+            <a href="https://donate.weebzonex.workers.dev" target="_blank" rel="noopener" class="px-4 py-3 rounded-xl hover:bg-primary hover:text-background transition flex items-center gap-3 font-semibold"><i class="fa-solid fa-heart text-red-500"></i> Donate</a>
+        </div>
+    </div>
+</nav>
+
+<main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="mt-auto w-full max-w-5xl mx-auto px-6 py-8">
+    <div class="glass-panel rounded-3xl p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-2">
+            <i class="fa-brands fa-telegram text-primary text-xl"></i>
+            <p class="text-text-secondary text-sm">© 2026 Telegram Stremio</p>
+        </div>
+    </div>
+</footer>
+
+<div id="toast-container" class="fixed top-4 right-4 z-[9999] space-y-3 pointer-events-none"></div>
+    
+<script>
+const btn = document.getElementById('menu-btn');
+const mobileMenu = document.getElementById('mobile-menu');
+const overlay = document.getElementById('overlay');
+const icon = document.getElementById('menu-icon');
+const navbar = document.getElementById('navbar');
+const userBtn = document.getElementById('user-btn');
+const userDropdown = document.getElementById('user-dropdown');
+const navContainer = document.getElementById('nav-container');
+
+let isMenuOpen = false;
+let isUserOpen = false;
+
+function toggleMenu() {
+    isMenuOpen = !isMenuOpen;
+    if(isUserOpen) closeUser();
+    if (isMenuOpen) {
+        mobileMenu.style.maxHeight = mobileMenu.scrollHeight + "px";
+        mobileMenu.style.opacity = "1";
+        overlay.style.opacity = "1";
+        overlay.classList.remove("pointer-events-none");
+        icon.classList.replace("fa-bars","fa-xmark");
+    } else closeMenu();
+}
+
+function closeMenu() {
+    mobileMenu.style.maxHeight = "0px";
+    mobileMenu.style.opacity = "0";
+    icon.classList.replace("fa-xmark","fa-bars");
+    isMenuOpen = false;
+    checkOverlay();
+}
+
+function toggleUser(e) {
+    if(e) e.stopPropagation();
+    isUserOpen = !isUserOpen;
+    if(isMenuOpen) closeMenu();
+    if (isUserOpen) {
+        userDropdown.classList.remove("opacity-0", "scale-95", "pointer-events-none");
+        overlay.style.opacity = "1";
+        overlay.classList.remove("pointer-events-none");
+    } else closeUser();
+}
+
+function closeUser() {
+    if(userDropdown) userDropdown.classList.add("opacity-0", "scale-95", "pointer-events-none");
+    isUserOpen = false;
+    checkOverlay();
+}
+
+function checkOverlay() {
+    if (!isMenuOpen && !isUserOpen) {
+        overlay.style.opacity = "0";
+        overlay.classList.add("pointer-events-none");
+    }
+}
+
+function showToast(message, type = 'info', title = '', duration = 2600) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    const icon = type === 'success'
+        ? 'fa-circle-check'
+        : type === 'error'
+            ? 'fa-triangle-exclamation'
+            : 'fa-circle-info';
+
+    toast.innerHTML = `
+        <i class="fa-solid ${icon} mt-0.5"></i>
+        <div class="min-w-0">
+            ${title ? `<div class="toast-title">${escapeHtml(title)}</div>` : ''}
+            <div class="toast-message">${escapeHtml(message)}</div>
+        </div>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.animation = 'toast-out 180ms ease-in forwards';
+        setTimeout(() => {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 200);
+    }, duration);
+}
+
+function escapeHtml(str) {
+    return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function selectTheme(key) {
+    const input = document.getElementById('theme-input');
+    const form = document.getElementById('theme-form');
+    if (!input || !form) return;
+    input.value = key;
+    const s = document.getElementById('style-input');
+    if (s) s.value = '';
+    form.submit();
+}
+function selectStyle(key) {
+    const input = document.getElementById('style-input');
+    const form = document.getElementById('theme-form');
+    if (!input || !form) return;
+    input.value = key;
+    const c = document.getElementById('theme-input');
+    if (c) c.value = '';
+    form.submit();
+}
+
+if(btn) btn.onclick = toggleMenu;
+if(userBtn) userBtn.onclick = toggleUser;
+overlay.onclick = () => { closeMenu(); closeUser(); };
+
+let scrollTicking = false;
+let navScrolled = false;
+window.addEventListener("scroll", () => {
+    if (isMenuOpen) closeMenu();
+    if (isUserOpen) closeUser();
+    if (!scrollTicking) {
+        scrollTicking = true;
+        requestAnimationFrame(() => {
+            const past = window.scrollY > 20;
+            if (past !== navScrolled) {
+                navScrolled = past;
+                navbar.classList.toggle("nav-scrolled", past);
+            }
+            scrollTicking = false;
+        });
+    }
+}, { passive: true });
+
+document.addEventListener("keydown", e => {
+    if (e.key === "Escape") { closeMenu(); closeUser(); }
+});
+
+if (userDropdown) {
+    userDropdown.addEventListener("click", e => e.stopPropagation());
+}
+
+const links = document.querySelectorAll(".nav-link");
+const pill = document.getElementById("active-pill");
+let activeLink = null;
+
+function movePill(el) {
+    if(!pill || !el) return;
+    const r = el.getBoundingClientRect();
+    const pr = el.parentElement.getBoundingClientRect();
+    pill.style.width = r.width + "px";
+    pill.style.height = r.height + "px";
+    pill.style.left = (r.left - pr.left) + "px";
+    pill.style.top = (r.top - pr.top) + "px";
+    links.forEach(l => l.classList.toggle("pill-active", l === el));
+}
+
+window.addEventListener('load', () => {
+    const current = window.location.pathname;
+    activeLink = [...links].find(l => l.getAttribute("href") === current) || links[0];
+    if(activeLink) movePill(activeLink);
+});
+
+links.forEach(l => {
+    l.addEventListener("mouseenter", () => movePill(l));
+});
+
+if(navContainer) {
+    navContainer.addEventListener("mouseleave", () => {
+        if(activeLink) movePill(activeLink);
+    });
+}
+
+{% if current_user %}
+/* Remind the admin that a manual upload session is active (except on Tools) */
+(function manualSessionReminder() {
+    if (window.location.pathname === '/admin/tools') return;
+    async function check() {
+        try {
+            const res = await fetch('/api/admin/tools/manual-session');
+            if (!res.ok) return;
+            const data = await res.json();
+            const s = data.session;
+            if (s && s.tmdb_id !== undefined && s.tmdb_id !== null) {
+                const label = s.title ? `"${s.title}"` : 'a title';
+                showToast(`Uploads are being added to ${label}. Open Tools to stop it if you're done.`,
+                          'error', '⚠ Upload session active', 5000);
+            }
+        } catch (e) { /* ignore */ }
+    }
+    check();
+    setInterval(check, 60000);
+})();
+
+(function versionBanner() {
+    const banner = document.getElementById('update-banner');
+    const navbar = document.getElementById('navbar');
+    function layout(show) {
+        if (!banner || !navbar) return;
+        if (show) {
+            banner.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                const h = banner.offsetHeight || 72;
+                navbar.style.top = (h + 12) + 'px';
+                document.body.style.paddingTop = (h + 88) + 'px';
+            });
+        } else {
+            banner.classList.add('hidden');
+            navbar.style.top = '';
+            document.body.style.paddingTop = '';
+        }
+    }
+    async function check() {
+        try {
+            const res = await fetch('/api/admin/version');
+            if (!res.ok) return;
+            const data = await res.json();
+            const d = data.data || {};
+            if (d.update_available && d.latest) {
+                const elL = document.getElementById('update-latest');
+                const elC = document.getElementById('update-current');
+                if (elL) elL.textContent = d.latest;
+                if (elC) elC.textContent = d.current || '';
+                layout(true);
+            } else {
+                layout(false);
+            }
+        } catch (e) {}
+    }
+    check();
+    setInterval(check, 3600000);
+    window.addEventListener('resize', () => {
+        if (banner && !banner.classList.contains('hidden')) layout(true);
+    });
+})();
+{% endif %}
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+}
+</script>
+
+</body>
+</html>

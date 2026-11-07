@@ -70,6 +70,15 @@ _DEFAULTS: Dict[str, Any] = {
     "fanart_shuffle": False,
     "fanart_shuffle_interval": 5,
     "fanart_low_res_poster": True,
+    #----- Simkl integration (optional)
+    "simkl_enabled": False,
+    "simkl_client_id": "",
+    "simkl_client_secret": "",
+    "simkl_access_token": "",
+    "simkl_user_name": "",
+    "simkl_user_id": "",
+    #----- AniList integration (optional, no API key required)
+    "anilist_enabled": True,
 }
 
 
@@ -299,6 +308,36 @@ class Settings:
     @property
     def fanart_low_res_poster(self) -> bool:
         return bool(self._d.get("fanart_low_res_poster", True))
+
+    #----- Simkl
+    @property
+    def simkl_enabled(self) -> bool:
+        return bool(self._d.get("simkl_enabled", False))
+
+    @property
+    def simkl_client_id(self) -> str:
+        return str(self._d.get("simkl_client_id") or "").strip()
+
+    @property
+    def simkl_client_secret(self) -> str:
+        return str(self._d.get("simkl_client_secret") or "").strip()
+
+    @property
+    def simkl_access_token(self) -> str:
+        return str(self._d.get("simkl_access_token") or "").strip()
+
+    @property
+    def simkl_user_name(self) -> str:
+        return str(self._d.get("simkl_user_name") or "").strip()
+
+    @property
+    def simkl_user_id(self) -> str:
+        return str(self._d.get("simkl_user_id") or "").strip()
+
+    #----- AniList
+    @property
+    def anilist_enabled(self) -> bool:
+        return bool(self._d.get("anilist_enabled", True))
 
     #----- Streaming buffer
     @property

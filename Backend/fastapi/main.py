@@ -2,6 +2,7 @@ import asyncio
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -155,6 +156,17 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Session secret loaded at startup; generate random if none configured
+_session_secret = SettingsManager.current().session_secret or __import__("secrets").token_hex(32)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=_session_secret,
+    session_cookie="tg_stremio_session",
+    max_age=60*60*24*30,
+    same_site="lax",
+    https_only=False
 )
 
 try:

@@ -1,4 +1,4 @@
 """Metadata provider backends."""
-from Backend.helper.metadata.providers import cinemeta, kitsu, tmdb, tvdb
+from Backend.helper.metadata.providers import anilist, cinemeta, kitsu, simkl, tmdb, tvdb
 
-__all__ = ["cinemeta", "kitsu", "tmdb", "tvdb"]
+__all__ = ["anilist", "cinemeta", "kitsu", "simkl", "tmdb", "tvdb"]

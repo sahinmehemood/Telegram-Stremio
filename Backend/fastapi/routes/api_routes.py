@@ -40,6 +40,7 @@ from Backend.helper.requests_manager import (
     set_status,
     submit_request,
 )
+from Backend.helper.metadata.providers import simkl as simkl_provider
 from Backend.helper.metadata import (
     build_id_link,
     extract_default_id,
@@ -76,6 +77,9 @@ from Backend.helper.subtitles import (
 from Backend.logger import LOGGER
 import Backend.pyrofork.bot as botmod
 from Backend.helper.announcer import delete_announcement_async
+_SIMKL_PIN_STATE: dict | None = None
+
+
 from Backend.pyrofork.bot import (
     StreamBot,
     client_avg_mbps,
@@ -1742,6 +1746,85 @@ async def session_remove_api():
 
 
 
+
+#----- Simkl account connection uses the documented PIN flow. Access tokens stay server-side.
+async def simkl_connect_api() -> dict:
+    global _SIMKL_PIN_STATE
+    settings = SettingsManager.current()
+    client_id = settings.simkl_client_id
+    if not client_id:
+        raise ValueError("Enter a Simkl Client-ID first.")
+    pin = await simkl_provider.request_pin(client_id)
+    if not pin or pin.get("error"):
+        raise ValueError(pin.get("error") if pin else "Could not start Simkl login.")
+    user_code = str(pin.get("user_code") or "").strip()
+    if not user_code:
+        raise ValueError("Simkl did not return a login code.")
+    _SIMKL_PIN_STATE = {
+        "client_id": client_id,
+        "user_code": user_code,
+        "expires_at": time() + int(pin.get("expires_in") or 900),
+        "interval": max(5, int(pin.get("interval") or 5)),
+    }
+    return {
+        "pending": True,
+        "user_code": user_code,
+        "verification_url": pin.get("verification_uri") or pin.get("verification_url") or "https://simkl.com/pin",
+        "expires_in": int(pin.get("expires_in") or 900),
+        "interval": _SIMKL_PIN_STATE["interval"],
+    }
+
+
+async def simkl_poll_api() -> dict:
+    global _SIMKL_PIN_STATE
+    state = _SIMKL_PIN_STATE
+    if not state or time() >= state["expires_at"]:
+        _SIMKL_PIN_STATE = None
+        return {"connected": False, "pending": False, "expired": True, "message": "Simkl login expired. Start again."}
+    result = await simkl_provider.poll_pin(state["client_id"], state["user_code"])
+    if result and result.get("result") == "OK" and result.get("access_token"):
+        token = str(result["access_token"])
+        profile = await simkl_provider.user_settings(state["client_id"], token) or {}
+        name = str(profile.get("name") or profile.get("username") or "").strip()
+        user_id = str(profile.get("id") or profile.get("user_id") or "").strip()
+        await SettingsManager.update(db, {
+            "simkl_access_token": token,
+            "simkl_user_name": name,
+            "simkl_user_id": user_id,
+            "simkl_enabled": True,
+        })
+        _SIMKL_PIN_STATE = None
+        return {"connected": True, "pending": False, "user_name": name, "user_id": user_id}
+    if result and result.get("device_code"):
+        _SIMKL_PIN_STATE = None
+        return {"connected": False, "pending": False, "expired": True, "message": "Simkl login expired. Start again."}
+    return {"connected": False, "pending": True, "interval": state["interval"], "message": "Waiting for Simkl approval."}
+
+
+async def simkl_status_api() -> dict:
+    settings = SettingsManager.current()
+    if not settings.simkl_access_token:
+        return {"connected": False, "configured": bool(settings.simkl_client_id)}
+    profile = await simkl_provider.user_settings(settings.simkl_client_id, settings.simkl_access_token)
+    if not profile:
+        return {"connected": False, "configured": bool(settings.simkl_client_id), "message": "Saved Simkl token is no longer valid."}
+    return {
+        "connected": True,
+        "configured": True,
+        "user_name": str(profile.get("name") or profile.get("username") or settings.simkl_user_name or ""),
+        "user_id": str(profile.get("id") or profile.get("user_id") or settings.simkl_user_id or ""),
+    }
+
+
+async def simkl_disconnect_api() -> dict:
+    await SettingsManager.update(db, {
+        "simkl_access_token": "",
+        "simkl_user_name": "",
+        "simkl_user_id": "",
+    })
+    return {"connected": False, "message": "Simkl disconnected."}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Settings API
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1753,6 +1836,8 @@ async def get_settings_api() -> dict:
     data["admin_password"] = ""
     data["session_secret_set"] = bool(data.get("session_secret"))
     data["session_secret"] = ""
+    data["simkl_connected"] = bool(data.get("simkl_access_token"))
+    data["simkl_access_token"] = ""
 
     try:
         data["database_list"] = db.get_database_list()
@@ -1789,7 +1874,7 @@ async def update_settings_api(payload: dict) -> dict:
         del payload["session_secret"]
 
     #----- Type coercion and validation
-    bool_keys = {"replace_mode", "duplicate_protection", "hide_catalog", "subscription", "show_proxy_and_non_proxy_both", "mediaflow_proxy", "announce_new_content", "delete_on_metadata_fail", "better_poster_enabled", "rpdb_enabled", "spatial_poster_enabled", "fanart_enabled", "fanart_shuffle", "fanart_low_res_poster", "buffer_enabled", "buffer_adaptive"}
+    bool_keys = {"replace_mode", "duplicate_protection", "hide_catalog", "subscription", "show_proxy_and_non_proxy_both", "mediaflow_proxy", "announce_new_content", "delete_on_metadata_fail", "better_poster_enabled", "rpdb_enabled", "spatial_poster_enabled", "fanart_enabled", "fanart_shuffle", "fanart_low_res_poster", "buffer_enabled", "buffer_adaptive", "simkl_enabled", "anilist_enabled"}
     for key in bool_keys:
         if key in payload:
             payload[key] = bool(payload[key])
